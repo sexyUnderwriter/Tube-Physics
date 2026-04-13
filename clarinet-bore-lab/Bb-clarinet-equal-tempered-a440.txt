@@ -1,0 +1,310 @@
+CLARINET_BORE_LAB_MODEL_V1
+{
+  "version": 1,
+  "name": "Bb Clarinet Equal Tempered A440",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "D3",
+  "selectedMouthpieceId": "vandoren-bb-5rv-lyre",
+  "segments": [
+    {
+      "id": "seg-bell",
+      "label": "Bell",
+      "zMm": 0,
+      "diameterMm": 15.2
+    },
+    {
+      "id": "seg-lower",
+      "label": "Lower joint",
+      "zMm": 170,
+      "diameterMm": 14.95
+    },
+    {
+      "id": "seg-mid",
+      "label": "Middle joint",
+      "zMm": 360,
+      "diameterMm": 14.7
+    },
+    {
+      "id": "seg-upper",
+      "label": "Upper joint",
+      "zMm": 540,
+      "diameterMm": 14.55
+    },
+    {
+      "id": "seg-barrel",
+      "label": "Barrel throat",
+      "zMm": 640,
+      "diameterMm": 14.45
+    }
+  ],
+  "holes": [
+    {
+      "id": "hole-d3",
+      "label": "H1 D3",
+      "diameterMm": 8.1,
+      "chimneyMm": 3,
+      "targetNote": "D3",
+      "zMm": 65
+    },
+    {
+      "id": "hole-e3",
+      "label": "H2 E3",
+      "diameterMm": 8.05,
+      "chimneyMm": 3,
+      "targetNote": "E3",
+      "zMm": 98
+    },
+    {
+      "id": "hole-fs3",
+      "label": "H3 F#3",
+      "diameterMm": 8,
+      "chimneyMm": 3,
+      "targetNote": "F#3",
+      "zMm": 129
+    },
+    {
+      "id": "hole-g3",
+      "label": "H4 G3",
+      "diameterMm": 7.95,
+      "chimneyMm": 3,
+      "targetNote": "G3",
+      "zMm": 158
+    },
+    {
+      "id": "hole-a3",
+      "label": "H5 A3",
+      "diameterMm": 7.9,
+      "chimneyMm": 3,
+      "targetNote": "A3",
+      "zMm": 186
+    },
+    {
+      "id": "hole-b3",
+      "label": "H6 B3",
+      "diameterMm": 7.85,
+      "chimneyMm": 3,
+      "targetNote": "B3",
+      "zMm": 212
+    },
+    {
+      "id": "hole-cs4",
+      "label": "H7 C#4",
+      "diameterMm": 7.8,
+      "chimneyMm": 3,
+      "targetNote": "C#4",
+      "zMm": 237
+    },
+    {
+      "id": "hole-d4",
+      "label": "H8 D4",
+      "diameterMm": 7.75,
+      "chimneyMm": 3,
+      "targetNote": "D4",
+      "zMm": 260
+    },
+    {
+      "id": "hole-e4",
+      "label": "H9 E4",
+      "diameterMm": 7.7,
+      "chimneyMm": 3,
+      "targetNote": "E4",
+      "zMm": 282
+    },
+    {
+      "id": "hole-fs4",
+      "label": "H10 F#4",
+      "diameterMm": 7.65,
+      "chimneyMm": 3,
+      "targetNote": "F#4",
+      "zMm": 302
+    },
+    {
+      "id": "hole-g4",
+      "label": "H11 G4",
+      "diameterMm": 7.6,
+      "chimneyMm": 3,
+      "targetNote": "G4",
+      "zMm": 322
+    },
+    {
+      "id": "hole-a4",
+      "label": "H12 A4",
+      "diameterMm": 7.55,
+      "chimneyMm": 3,
+      "targetNote": "A4",
+      "zMm": 340
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-chal-d3",
+      "label": "Chalumeau D3",
+      "targetNote": "D3",
+      "ventHoleId": "hole-d3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-a4",
+      "label": "Clarion A4",
+      "targetNote": "A4",
+      "ventHoleId": "hole-d3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-e3",
+      "label": "Chalumeau E3",
+      "targetNote": "E3",
+      "ventHoleId": "hole-e3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-b4",
+      "label": "Clarion B4",
+      "targetNote": "B4",
+      "ventHoleId": "hole-e3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-fs3",
+      "label": "Chalumeau F#3",
+      "targetNote": "F#3",
+      "ventHoleId": "hole-fs3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-cs5",
+      "label": "Clarion C#5",
+      "targetNote": "C#5",
+      "ventHoleId": "hole-fs3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-g3",
+      "label": "Chalumeau G3",
+      "targetNote": "G3",
+      "ventHoleId": "hole-g3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-d5",
+      "label": "Clarion D5",
+      "targetNote": "D5",
+      "ventHoleId": "hole-g3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-a3",
+      "label": "Chalumeau A3",
+      "targetNote": "A3",
+      "ventHoleId": "hole-a3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-e5",
+      "label": "Clarion E5",
+      "targetNote": "E5",
+      "ventHoleId": "hole-a3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-b3",
+      "label": "Chalumeau B3",
+      "targetNote": "B3",
+      "ventHoleId": "hole-b3",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-fs5",
+      "label": "Clarion F#5",
+      "targetNote": "F#5",
+      "ventHoleId": "hole-b3",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-cs4",
+      "label": "Chalumeau C#4",
+      "targetNote": "C#4",
+      "ventHoleId": "hole-cs4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-gs5",
+      "label": "Clarion G#5",
+      "targetNote": "G#5",
+      "ventHoleId": "hole-cs4",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-d4",
+      "label": "Chalumeau D4",
+      "targetNote": "D4",
+      "ventHoleId": "hole-d4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-a5",
+      "label": "Clarion A5",
+      "targetNote": "A5",
+      "ventHoleId": "hole-d4",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-e4",
+      "label": "Chalumeau E4",
+      "targetNote": "E4",
+      "ventHoleId": "hole-e4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-b5",
+      "label": "Clarion B5",
+      "targetNote": "B5",
+      "ventHoleId": "hole-e4",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-fs4",
+      "label": "Chalumeau F#4",
+      "targetNote": "F#4",
+      "ventHoleId": "hole-fs4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-cs6",
+      "label": "Clarion C#6",
+      "targetNote": "C#6",
+      "ventHoleId": "hole-fs4",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-g4",
+      "label": "Chalumeau G4",
+      "targetNote": "G4",
+      "ventHoleId": "hole-g4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-d6",
+      "label": "Clarion D6",
+      "targetNote": "D6",
+      "ventHoleId": "hole-g4",
+      "register": "third"
+    },
+    {
+      "id": "fing-chal-a4",
+      "label": "Chalumeau A4",
+      "targetNote": "A4",
+      "ventHoleId": "hole-a4",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-e6",
+      "label": "Clarion E6",
+      "targetNote": "E6",
+      "ventHoleId": "hole-a4",
+      "register": "third"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useRef, useState } from "react";
 import {
   BoreSegment,
   Fingering,
@@ -73,7 +73,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Vent",
-    positionMm: 150,
+    zMm: 490,
     diameterMm: 2.2,
     chimneyMm: 2.8,
     targetNote: "B4",
@@ -81,7 +81,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Thumb",
-    positionMm: 210,
+    zMm: 430,
     diameterMm: 8.2,
     chimneyMm: 3.1,
     targetNote: "G4",
@@ -89,7 +89,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Front A",
-    positionMm: 196,
+    zMm: 444,
     diameterMm: 4.0,
     chimneyMm: 2.3,
     targetNote: "A4",
@@ -97,7 +97,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 1",
-    positionMm: 236,
+    zMm: 404,
     diameterMm: 7.8,
     chimneyMm: 3.0,
     targetNote: "A4",
@@ -105,7 +105,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 2",
-    positionMm: 264,
+    zMm: 376,
     diameterMm: 8.0,
     chimneyMm: 3.0,
     targetNote: "G#4",
@@ -113,7 +113,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 3",
-    positionMm: 292,
+    zMm: 348,
     diameterMm: 8.1,
     chimneyMm: 3.0,
     targetNote: "G4",
@@ -121,7 +121,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 4",
-    positionMm: 324,
+    zMm: 316,
     diameterMm: 8.3,
     chimneyMm: 3.0,
     targetNote: "F#4",
@@ -129,7 +129,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 5",
-    positionMm: 358,
+    zMm: 282,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "F4",
@@ -137,7 +137,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 6",
-    positionMm: 394,
+    zMm: 246,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "E4",
@@ -145,7 +145,7 @@ const initialHoles: ToneHole[] = [
   {
     id: makeId("hole"),
     label: "Finger 7",
-    positionMm: 432,
+    zMm: 208,
     diameterMm: 8.5,
     chimneyMm: 3.0,
     targetNote: "D4",
@@ -219,9 +219,7 @@ const mouthpiecePresets: MouthpiecePreset[] = [
   },
 ];
 
-const LEGACY_SAVE_STORAGE_KEY = "clarinet-bore-lab.design.v1";
-const MODEL_LIBRARY_STORAGE_KEY = "clarinet-bore-lab.model-library.v1";
-const LAST_OPENED_MODEL_ID_KEY = "clarinet-bore-lab.last-opened-model-id.v1";
+const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
 type DesignSnapshot = {
   version: 1;
@@ -236,31 +234,68 @@ type DesignSnapshot = {
   fingerings: Fingering[];
 };
 
-type SavedModelRecord = {
-  id: string;
-  name: string;
-  savedAtIso: string;
-  snapshot: DesignSnapshot;
-};
+type LegacyToneHole = Omit<ToneHole, "zMm"> & { positionMm: number };
+type SnapshotV1 = Omit<DesignSnapshot, "holes"> & { holes: Array<ToneHole | LegacyToneHole> };
 
-function loadModelLibraryFromStorage(): SavedModelRecord[] {
-  try {
-    const raw = localStorage.getItem(MODEL_LIBRARY_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw) as SavedModelRecord[];
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((entry) => entry?.snapshot?.version === 1);
-  } catch {
-    return [];
-  }
+function serializeSnapshot(snapshot: DesignSnapshot): string {
+  return [FILE_HEADER, JSON.stringify(snapshot, null, 2)].join("\n");
 }
 
-function persistModelLibrary(models: SavedModelRecord[]): void {
-  localStorage.setItem(MODEL_LIBRARY_STORAGE_KEY, JSON.stringify(models));
+function parseSnapshotFile(text: string): DesignSnapshot | null {
+  const trimmed = text.trim();
+  const jsonText = trimmed.startsWith(FILE_HEADER)
+    ? trimmed.slice(FILE_HEADER.length).trim()
+    : trimmed;
+
+  try {
+    const parsed = JSON.parse(jsonText) as SnapshotV1;
+    if (parsed.version !== 1) {
+      return null;
+    }
+
+    const baseLengthMm = Math.max(
+      0,
+      ...parsed.segments.map((segment) => Math.max(segment.zMm, 0))
+    );
+
+    const normalizedHoles: ToneHole[] = parsed.holes.map((hole) => {
+      if ("zMm" in hole && Number.isFinite(hole.zMm)) {
+        return {
+          id: hole.id,
+          label: hole.label,
+          zMm: hole.zMm,
+          diameterMm: hole.diameterMm,
+          chimneyMm: hole.chimneyMm,
+          targetNote: hole.targetNote,
+        };
+      }
+      if ("positionMm" in hole && Number.isFinite(hole.positionMm)) {
+        return {
+          id: hole.id,
+          label: hole.label,
+          zMm: Math.max(baseLengthMm - hole.positionMm, 0),
+          diameterMm: hole.diameterMm,
+          chimneyMm: hole.chimneyMm,
+          targetNote: hole.targetNote,
+        };
+      }
+      return {
+        id: hole.id,
+        label: hole.label,
+        zMm: 0,
+        diameterMm: hole.diameterMm,
+        chimneyMm: hole.chimneyMm,
+        targetNote: hole.targetNote,
+      };
+    });
+
+    return {
+      ...parsed,
+      holes: normalizedHoles,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default function App() {
@@ -277,10 +312,8 @@ export default function App() {
     mouthpiecePresets[1]
   );
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [savedModels, setSavedModels] = useState<SavedModelRecord[]>(() =>
-    loadModelLibraryFromStorage()
-  );
-  const [selectedSavedModelId, setSelectedSavedModelId] = useState<string>("");
+  const [loadStatus, setLoadStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const acousticSegments = useMemo<BoreSegment[]>(() => {
     const baseLength = totalBoreLengthMm(segments);
@@ -295,36 +328,27 @@ export default function App() {
     ];
   }, [activeMouthpiece.acousticInsertMm, activeMouthpiece.shankBoreMm, segments]);
 
-  const offsetHoles = useMemo<ToneHole[]>(
-    () =>
-      holes.map((hole) => ({
-        ...hole,
-        positionMm: hole.positionMm + activeMouthpiece.acousticInsertMm,
-      })),
-    [holes, activeMouthpiece.acousticInsertMm]
-  );
-
   const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
   const results = useMemo(
-    () => evaluateToneHoles(acousticSegments, offsetHoles, tempC, pitchStandardHz),
-    [acousticSegments, offsetHoles, tempC, pitchStandardHz]
+    () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz),
+    [acousticSegments, holes, tempC, pitchStandardHz]
   );
   const warnings = useMemo(
-    () => spacingWarnings(offsetHoles, acousticSegments),
-    [offsetHoles, acousticSegments]
+    () => spacingWarnings(holes, acousticSegments),
+    [holes, acousticSegments]
   );
   const fingeringResults = useMemo(
     () =>
       evaluateFingerings(
         acousticSegments,
-        offsetHoles,
+        holes,
         fingerings,
         tempC,
         toleranceCents,
         pitchStandardHz
       ),
-    [acousticSegments, offsetHoles, fingerings, tempC, toleranceCents, pitchStandardHz]
+    [acousticSegments, holes, fingerings, tempC, toleranceCents, pitchStandardHz]
   );
   const passCount = useMemo(
     () => fingeringResults.filter((result) => result.withinTolerance).length,
@@ -380,7 +404,7 @@ export default function App() {
       });
 
     const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
-    const holesOnBore = [...offsetHoles].sort((a, b) => a.positionMm - b.positionMm);
+    const holesOnBore = [...holes].sort((a, b) => a.zMm - b.zMm);
 
     return {
       width,
@@ -391,7 +415,7 @@ export default function App() {
       zToSvg,
       rToSvg,
     };
-  }, [offsetHoles, profilePoints, totalLengthMm]);
+  }, [holes, profilePoints, totalLengthMm]);
 
   function applySnapshot(saved: DesignSnapshot): void {
     setName(saved.name);
@@ -409,35 +433,6 @@ export default function App() {
       setActiveMouthpiece(preset);
     }
   }
-
-  useEffect(() => {
-    if (savedModels.length > 0) {
-      const lastOpenedModelId = localStorage.getItem(LAST_OPENED_MODEL_ID_KEY);
-      const preferred =
-        (lastOpenedModelId
-          ? savedModels.find((entry) => entry.id === lastOpenedModelId)
-          : null) ?? savedModels[0];
-
-      setSelectedSavedModelId(preferred.id);
-      applySnapshot(preferred.snapshot);
-      return;
-    }
-
-    // Legacy compatibility: if no model library exists, load old single-save snapshot.
-    const raw = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY);
-    if (!raw) {
-      return;
-    }
-    try {
-      const saved = JSON.parse(raw) as DesignSnapshot;
-      if (saved.version !== 1) {
-        return;
-      }
-      applySnapshot(saved);
-    } catch {
-      // Ignore invalid saved content and keep current defaults.
-    }
-  }, []);
 
   function buildCurrentSnapshot(): DesignSnapshot {
     return {
@@ -462,70 +457,48 @@ export default function App() {
     setActiveMouthpiece(preset);
   }
 
-  function saveAsNewModel(): void {
+  function saveToTextFile(): void {
     const snapshot = buildCurrentSnapshot();
-    const modelId = makeId("model");
-    const savedAtIso = new Date().toISOString();
-    const record: SavedModelRecord = {
-      id: modelId,
-      name: snapshot.name || "Untitled model",
-      savedAtIso,
-      snapshot,
-    };
-    const updated = [record, ...savedModels];
-    setSavedModels(updated);
-    setSelectedSavedModelId(modelId);
-    localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, modelId);
-    persistModelLibrary(updated);
-    setLastSavedAt(new Date(savedAtIso).toLocaleTimeString());
+    const fileText = serializeSnapshot(snapshot);
+    const blob = new Blob([fileText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const safeName = (snapshot.name || "clarinet-model")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    anchor.href = url;
+    anchor.download = `${safeName || "clarinet-model"}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    setLastSavedAt(new Date().toLocaleTimeString());
+    setLoadStatus(null);
   }
 
-  function updateSelectedModel(): void {
-    if (!selectedSavedModelId) {
-      saveAsNewModel();
-      return;
+  function openTextFileDialog(): void {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
-    const snapshot = buildCurrentSnapshot();
-    const savedAtIso = new Date().toISOString();
-    const updated = savedModels.map((model) =>
-      model.id === selectedSavedModelId
-        ? {
-            ...model,
-            name: snapshot.name || model.name,
-            savedAtIso,
-            snapshot,
-          }
-        : model
-    );
-    setSavedModels(updated);
-    persistModelLibrary(updated);
-    setLastSavedAt(new Date(savedAtIso).toLocaleTimeString());
   }
 
-  function openSelectedModel(): void {
-    const model = savedModels.find((entry) => entry.id === selectedSavedModelId);
-    if (!model) {
+  async function handleLoadTextFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
       return;
     }
-    applySnapshot(model.snapshot);
-    localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, model.id);
-  }
-
-  function deleteSelectedModel(): void {
-    if (!selectedSavedModelId) {
+    const text = await file.text();
+    const snapshot = parseSnapshotFile(text);
+    if (!snapshot) {
+      setLoadStatus("Could not read this file. Expected Clarinet Bore Lab text format.");
+      event.target.value = "";
       return;
     }
-    const updated = savedModels.filter((entry) => entry.id !== selectedSavedModelId);
-    setSavedModels(updated);
-    persistModelLibrary(updated);
 
-    if (updated.length > 0) {
-      setSelectedSavedModelId(updated[0].id);
-      localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, updated[0].id);
-    } else {
-      setSelectedSavedModelId("");
-      localStorage.removeItem(LAST_OPENED_MODEL_ID_KEY);
-    }
+    applySnapshot(snapshot);
+    setLoadStatus(`Loaded ${file.name}`);
+    event.target.value = "";
   }
 
   function updateSegment(
@@ -572,13 +545,16 @@ export default function App() {
       return;
     }
 
-    const orderedHoles = [...holes].sort((a, b) => b.positionMm - a.positionMm);
+    const diatonicMajorSteps = [0, 2, 4, 5, 7, 9, 11];
+    const orderedHoles = [...holes].sort((a, b) => a.zMm - b.zMm);
     const updatedTargets = new Map<string, string>();
     const generatedFingerings: Fingering[] = [];
 
     for (let i = 0; i < orderedHoles.length; i += 1) {
       const hole = orderedHoles[i];
-      const chalumeauMidi = firstMidi + i;
+      const scaleDegree = i % diatonicMajorSteps.length;
+      const octaveOffset = Math.floor(i / diatonicMajorSteps.length) * 12;
+      const chalumeauMidi = firstMidi + octaveOffset + diatonicMajorSteps[scaleDegree];
       const clarionMidi = chalumeauMidi + 19;
       const chalumeauNote = midiToName(chalumeauMidi);
       const clarionNote = midiToName(clarionMidi);
@@ -674,42 +650,19 @@ export default function App() {
           <button type="button" onClick={() => applyMouthpiecePreset(selectedMouthpieceId)}>
             Apply mouthpiece preset
           </button>
-          <label>
-            Saved bore models
-            <select
-              value={selectedSavedModelId}
-              onChange={(e) => setSelectedSavedModelId(e.target.value)}
-            >
-              <option value="">(no saved models)</option>
-              {savedModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name} - {new Date(model.savedAtIso).toLocaleString()}
-                </option>
-              ))}
-            </select>
-          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,text/plain,application/json"
+            style={{ display: "none" }}
+            onChange={handleLoadTextFile}
+          />
           <div className="badge-row">
-            <button type="button" onClick={openSelectedModel} disabled={!selectedSavedModelId}>
-              Open selected
-            </button>
-            <button type="button" onClick={saveAsNewModel}>Save as new model</button>
-            <button
-              type="button"
-              onClick={updateSelectedModel}
-              disabled={!selectedSavedModelId}
-            >
-              Update selected
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={deleteSelectedModel}
-              disabled={!selectedSavedModelId}
-            >
-              Delete selected
-            </button>
+            <button type="button" onClick={saveToTextFile}>Save to text file</button>
+            <button type="button" onClick={openTextFileDialog}>Load from text file</button>
             {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
           </div>
+          {loadStatus && <p className="math">{loadStatus}</p>}
           <p className="math">
             Active: {activeMouthpiece.label} ({activeMouthpiece.instrument}), tip opening{" "}
             {activeMouthpiece.openingMm.toFixed(3)} mm ({activeMouthpiece.openingHundredthMm} x
@@ -820,7 +773,7 @@ export default function App() {
                   {
                     id: makeId("hole"),
                     label: `H${prev.length + 1}`,
-                    positionMm: Math.max(180, prev.length * 36 + 180),
+                    zMm: Math.max(180, prev.length * 36 + 180),
                     diameterMm: 7,
                     chimneyMm: 3,
                     targetNote: "",
@@ -836,7 +789,7 @@ export default function App() {
             <thead>
               <tr>
                 <th>Label</th>
-                <th>Position (mm)</th>
+                <th>z (mm)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
                 <th>Target</th>
@@ -855,8 +808,8 @@ export default function App() {
                   <td>
                     <input
                       type="number"
-                      value={hole.positionMm}
-                      onChange={(e) => updateHole(hole.id, "positionMm", Number(e.target.value))}
+                      value={hole.zMm}
+                      onChange={(e) => updateHole(hole.id, "zMm", Number(e.target.value))}
                     />
                   </td>
                   <td>
@@ -928,8 +881,7 @@ export default function App() {
               <polygon points={boreSvg.polygon} className="bore-shape" />
 
               {boreSvg.holesOnBore.map((hole) => {
-                const zMm = Math.max(totalLengthMm - hole.positionMm, 0);
-                const x = boreSvg.zToSvg(zMm);
+                const x = boreSvg.zToSvg(Math.max(hole.zMm, 0));
                 const localRadius = boreSvg.rToSvg(hole.diameterMm * 0.5);
                 return (
                   <g key={hole.id}>
@@ -974,7 +926,7 @@ export default function App() {
             <thead>
               <tr>
                 <th>Hole</th>
-                <th>Position</th>
+                <th>z</th>
                 <th>Local bore</th>
                 <th>L_eff</th>
                 <th>f1</th>
@@ -988,7 +940,7 @@ export default function App() {
               {results.map((result) => (
                 <tr key={result.id}>
                   <td>{result.label}</td>
-                  <td>{result.positionMm.toFixed(1)} mm</td>
+                  <td>{result.zMm.toFixed(1)} mm</td>
                   <td>{result.localBoreMm.toFixed(2)} mm</td>
                   <td>{result.effectiveLengthMm.toFixed(2)} mm</td>
                   <td>{result.predictedFundamentalHz.toFixed(2)} Hz</td>
@@ -1121,7 +1073,7 @@ export default function App() {
                       >
                         {holes.map((hole) => (
                           <option key={hole.id} value={hole.id}>
-                            {hole.label} @ {hole.positionMm.toFixed(1)} mm
+                            {hole.label} @ z {hole.zMm.toFixed(1)} mm
                           </option>
                         ))}
                       </select>

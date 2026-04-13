@@ -8,7 +8,7 @@ export type BoreSegment = {
 export type ToneHole = {
   id: string;
   label: string;
-  positionMm: number;
+  zMm: number;
   diameterMm: number;
   chimneyMm: number;
   targetNote: string;
@@ -25,7 +25,7 @@ export type Fingering = {
 export type HoleEvaluation = {
   id: string;
   label: string;
-  positionMm: number;
+  zMm: number;
   localBoreMm: number;
   effectiveLengthMm: number;
   predictedFundamentalHz: number;
@@ -172,7 +172,7 @@ function effectiveLengthForHole(hole: ToneHole, localBoreMm: number): number {
   // Approximate closed-open clarinet vent correction from branch inertance.
   const branchInertanceTerm = ((rb * rb) / (rh * rh)) * (0.45 * chimney + 0.25 * rh);
   const openEndTerm = 0.3 * rb;
-  return hole.positionMm + branchInertanceTerm + openEndTerm;
+  return branchInertanceTerm + openEndTerm;
 }
 
 function correctionAdvice(centsToTarget: number | null): string {
@@ -183,9 +183,14 @@ function correctionAdvice(centsToTarget: number | null): string {
     return "Near target. Keep geometry, then verify with impedance or prototype tests.";
   }
   if (centsToTarget > 0) {
-    return "Sharp: increase effective length (move hole farther from mouthpiece, reduce hole diameter, or increase chimney).";
+    return "Sharp: increase effective length (move hole toward bell / lower z, reduce hole diameter, or increase chimney).";
   }
-  return "Flat: decrease effective length (move hole closer to mouthpiece, enlarge hole diameter, or reduce chimney).";
+  return "Flat: decrease effective length (move hole toward mouthpiece / higher z, enlarge hole diameter, or reduce chimney).";
+}
+
+function distanceFromMouthpieceMm(segments: BoreSegment[], holeZMm: number): number {
+  const total = totalBoreLengthMm(segments);
+  return clamp(total - holeZMm, 0, total);
 }
 
 function findHoleById(holes: ToneHole[], id: string): ToneHole | null {
@@ -206,10 +211,11 @@ export function evaluateToneHoles(
   const cMs = speedOfSoundMs(tempC);
 
   return [...holes]
-    .sort((a, b) => a.positionMm - b.positionMm)
+    .sort((a, b) => a.zMm - b.zMm)
     .map((hole) => {
-      const localBoreMm = diameterAtMm(segments, hole.positionMm);
-      const effectiveLengthMm = effectiveLengthForHole(hole, localBoreMm);
+      const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+      const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+      const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
       const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
       const thirdHz = oddHarmonic(fundamentalHz, 2);
       const nearestMidi = Math.round(hzToMidi(fundamentalHz, a4Hz));
@@ -223,7 +229,7 @@ export function evaluateToneHoles(
       return {
         id: hole.id,
         label: hole.label,
-        positionMm: hole.positionMm,
+        zMm: hole.zMm,
         localBoreMm,
         effectiveLengthMm,
         predictedFundamentalHz: fundamentalHz,
@@ -264,8 +270,9 @@ export function evaluateFingerings(
       };
     }
 
-    const localBoreMm = diameterAtMm(segments, hole.positionMm);
-    const effectiveLengthMm = effectiveLengthForHole(hole, localBoreMm);
+    const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+    const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+    const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
     const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
     const predictedHz =
       fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
@@ -313,14 +320,14 @@ export function spacingWarnings(
   holes: ToneHole[],
   segments: BoreSegment[]
 ): string[] {
-  const ordered = [...holes].sort((a, b) => a.positionMm - b.positionMm);
+  const ordered = [...holes].sort((a, b) => a.zMm - b.zMm);
   const warnings: string[] = [];
 
   for (let i = 1; i < ordered.length; i += 1) {
     const prev = ordered[i - 1];
     const curr = ordered[i];
-    const gap = curr.positionMm - prev.positionMm;
-    const localBore = diameterAtMm(segments, curr.positionMm);
+    const gap = curr.zMm - prev.zMm;
+    const localBore = diameterAtMm(segments, distanceFromMouthpieceMm(segments, curr.zMm));
     const threshold = Math.max(localBore * 0.8, 8);
 
     if (gap < threshold) {
