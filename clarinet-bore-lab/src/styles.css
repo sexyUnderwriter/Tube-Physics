@@ -79,6 +79,70 @@ h3 {
   margin: 0;
 }
 
+.quick-calc {
+  margin-top: 0.7rem;
+  margin-bottom: 0.7rem;
+  max-width: 640px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0.62rem 0.72rem;
+}
+
+.quick-calc h3 {
+  font-size: 0.88rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.quick-calc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.65rem;
+  margin-bottom: 0.58rem;
+}
+
+.quick-calc-readout {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 0.44rem 0.55rem;
+  background: rgba(255, 255, 255, 0.8);
+  display: grid;
+  align-content: center;
+  gap: 0.18rem;
+}
+
+.quick-calc-readout span,
+.quick-calc-grid span {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quick-calc-readout strong,
+.quick-calc-grid strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88rem;
+}
+
+.quick-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.55rem;
+}
+
+.quick-calc-grid > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.42rem 0.5rem;
+  background: rgba(255, 255, 255, 0.8);
+  display: grid;
+  gap: 0.16rem;
+}
+
 .hero p {
   max-width: 65ch;
 }
@@ -358,6 +422,46 @@ thead th {
   max-width: 34ch;
 }
 
+.muted-cell {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.wall-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  white-space: nowrap;
+}
+
+.register-cell {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #526;
+}
+
+.target-hz-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sync-btn {
+  background: transparent;
+  border: 1px solid rgba(38, 102, 164, 0.35);
+  color: #184d81;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.38rem;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.sync-btn:hover {
+  background: rgba(38, 102, 164, 0.1);
+}
+
 .warnings {
   margin-top: 0.72rem;
   border: 1px dashed rgba(165, 39, 57, 0.35);
@@ -408,6 +512,11 @@ footer {
 @media (max-width: 980px) {
   .hero,
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-calc-row,
+  .quick-calc-grid {
     grid-template-columns: 1fr;
   }
 

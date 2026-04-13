@@ -8,6 +8,7 @@ import {
   sampleBoreProfile,
   evaluateFingerings,
   evaluateToneHoles,
+  outerDiameterAtMm,
   spacingWarnings,
   speedOfSoundMs,
   totalBoreLengthMm,
@@ -30,6 +31,12 @@ type MouthpieceGeometry = {
   insertMm: number;
   boreMm: number;
   presetApplied: boolean;
+};
+
+type DrillBit = {
+  system: "fractional" | "letter" | "number";
+  label: string;
+  diameterIn: number;
 };
 
 function makeId(prefix: string): string {
@@ -241,6 +248,135 @@ function buildMouthpieceGeometry(preset: MouthpiecePreset): MouthpieceGeometry {
   };
 }
 
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return Math.max(x, 1);
+}
+
+function formatFraction(numerator: number, denominator: number): string {
+  const factor = gcd(numerator, denominator);
+  return `${numerator / factor}/${denominator / factor}`;
+}
+
+function buildFractionalDrillBits(): DrillBit[] {
+  const out: DrillBit[] = [];
+  for (let numerator = 1; numerator <= 64; numerator += 1) {
+    out.push({
+      system: "fractional",
+      label: formatFraction(numerator, 64),
+      diameterIn: numerator / 64,
+    });
+  }
+  return out;
+}
+
+const FRACTIONAL_DRILL_BITS: DrillBit[] = buildFractionalDrillBits();
+
+const LETTER_DRILL_SOURCE: Array<[string, number]> = [
+  ["A", 0.234],
+  ["B", 0.238],
+  ["C", 0.242],
+  ["D", 0.246],
+  ["E", 0.25],
+  ["F", 0.257],
+  ["G", 0.261],
+  ["H", 0.266],
+  ["I", 0.272],
+  ["J", 0.277],
+  ["K", 0.281],
+  ["L", 0.29],
+  ["M", 0.295],
+  ["N", 0.302],
+  ["O", 0.316],
+  ["P", 0.323],
+  ["Q", 0.332],
+  ["R", 0.339],
+  ["S", 0.348],
+  ["T", 0.358],
+  ["U", 0.368],
+  ["V", 0.377],
+  ["W", 0.386],
+  ["X", 0.397],
+  ["Y", 0.404],
+  ["Z", 0.413],
+];
+
+const LETTER_DRILL_BITS: DrillBit[] = LETTER_DRILL_SOURCE.map(([label, diameterIn]) => ({
+  system: "letter" as const,
+  label,
+  diameterIn,
+}));
+
+const NUMBER_DRILL_SOURCE: Array<[string, number]> = [
+  ["80", 0.0135], ["79", 0.0145], ["78", 0.016], ["77", 0.018], ["76", 0.02],
+  ["75", 0.021], ["74", 0.0225], ["73", 0.024], ["72", 0.025], ["71", 0.026],
+  ["70", 0.028], ["69", 0.0292], ["68", 0.031], ["67", 0.032], ["66", 0.033],
+  ["65", 0.035], ["64", 0.036], ["63", 0.037], ["62", 0.038], ["61", 0.039],
+  ["60", 0.04], ["59", 0.041], ["58", 0.042], ["57", 0.043], ["56", 0.0465],
+  ["55", 0.052], ["54", 0.055], ["53", 0.0595], ["52", 0.0635], ["51", 0.067],
+  ["50", 0.07], ["49", 0.073], ["48", 0.076], ["47", 0.0785], ["46", 0.081],
+  ["45", 0.082], ["44", 0.086], ["43", 0.089], ["42", 0.0935], ["41", 0.096],
+  ["40", 0.098], ["39", 0.0995], ["38", 0.1015], ["37", 0.104], ["36", 0.1065],
+  ["35", 0.11], ["34", 0.111], ["33", 0.113], ["32", 0.116], ["31", 0.12],
+  ["30", 0.1285], ["29", 0.136], ["28", 0.1405], ["27", 0.144], ["26", 0.147],
+  ["25", 0.1495], ["24", 0.152], ["23", 0.154], ["22", 0.157], ["21", 0.159],
+  ["20", 0.161], ["19", 0.166], ["18", 0.1695], ["17", 0.173], ["16", 0.177],
+  ["15", 0.18], ["14", 0.182], ["13", 0.185], ["12", 0.189], ["11", 0.191],
+  ["10", 0.1935], ["9", 0.196], ["8", 0.199], ["7", 0.201], ["6", 0.204],
+  ["5", 0.2055], ["4", 0.209], ["3", 0.213], ["2", 0.221], ["1", 0.228],
+];
+
+const NUMBER_DRILL_BITS: DrillBit[] = NUMBER_DRILL_SOURCE.map(([label, diameterIn]) => ({
+  system: "number" as const,
+  label,
+  diameterIn,
+}));
+
+const ALL_DRILL_BITS: DrillBit[] = [
+  ...FRACTIONAL_DRILL_BITS,
+  ...LETTER_DRILL_BITS,
+  ...NUMBER_DRILL_BITS,
+].sort((a, b) => a.diameterIn - b.diameterIn);
+
+function findClosestNotOverDrillBitIndex(targetIn: number, bits: DrillBit[]): number {
+  let bestIndex = -1;
+  for (let i = 0; i < bits.length; i += 1) {
+    if (bits[i].diameterIn <= targetIn) {
+      bestIndex = i;
+    } else {
+      break;
+    }
+  }
+  return bestIndex;
+}
+
+function formatDrillBitLabel(bit: DrillBit): string {
+  if (bit.system === "number") {
+    return `#${bit.label}`;
+  }
+  return bit.label;
+}
+
+function formatDrillFamily(bit: DrillBit): string {
+  if (bit.system === "fractional") {
+    return "Fractional";
+  }
+  if (bit.system === "letter") {
+    return "Letter";
+  }
+  return "Number";
+}
+
+function inchesToMm(valueInches: number): number {
+  return valueInches * 25.4;
+}
+
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
 type DesignSnapshot = {
@@ -364,7 +500,22 @@ export default function App() {
   );
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [loadStatus, setLoadStatus] = useState<string | null>(null);
+  const [converterMm, setConverterMm] = useState("8");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const converterMmValue = Number(converterMm);
+  const hasConverterInput = Number.isFinite(converterMmValue) && converterMmValue > 0;
+  const converterInches = hasConverterInput ? converterMmValue / 25.4 : null;
+  const closestNotOverIndex =
+    converterInches === null ? -1 : findClosestNotOverDrillBitIndex(converterInches, ALL_DRILL_BITS);
+  const closestNotOver =
+    closestNotOverIndex >= 0 ? ALL_DRILL_BITS[closestNotOverIndex] : null;
+  const belowBestFit =
+    closestNotOverIndex > 0 ? ALL_DRILL_BITS[closestNotOverIndex - 1] : null;
+  const aboveBestFit =
+    closestNotOverIndex >= 0 && closestNotOverIndex < ALL_DRILL_BITS.length - 1
+      ? ALL_DRILL_BITS[closestNotOverIndex + 1]
+      : null;
 
   const bodyLengthMm = useMemo(() => totalBoreLengthMm(segments), [segments]);
   const mouthpieceSegment = useMemo<BoreSegment>(
@@ -391,8 +542,8 @@ export default function App() {
   const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
   const results = useMemo(
-    () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz),
-    [acousticSegments, holes, tempC, pitchStandardHz]
+    () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings),
+    [acousticSegments, holes, tempC, pitchStandardHz, fingerings]
   );
   const warnings = useMemo(
     () => spacingWarnings(holes, acousticSegments),
@@ -610,6 +761,14 @@ export default function App() {
     );
   }
 
+  function updateSegmentOuterDiameter(id: string, raw: string): void {
+    const parsed = parseFloat(raw);
+    const value = raw === "" || !Number.isFinite(parsed) ? undefined : parsed;
+    setSegments((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, outerDiameterMm: value } : s))
+    );
+  }
+
   function updateMouthpieceSegment(
     key: "label" | "zMm" | "diameterMm",
     value: string | number
@@ -709,6 +868,71 @@ export default function App() {
         <div>
           <p className="kicker">Clarinet Air Column Designer</p>
           <h1>Clarinet Bore Lab</h1>
+          <div className="quick-calc" aria-label="Millimeter to imperial drill size converter">
+            <h3>Quick Drill Converter</h3>
+            <div className="quick-calc-row">
+              <label>
+                Millimeters
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  value={converterMm}
+                  onChange={(e) => setConverterMm(e.target.value)}
+                />
+              </label>
+              <div className="quick-calc-readout">
+                <span>Inches</span>
+                <strong>
+                  {converterInches === null ? "--" : `${converterInches.toFixed(4)} in`}
+                </strong>
+              </div>
+            </div>
+            <div className="quick-calc-grid">
+              <div>
+                <span>One below</span>
+                <strong>
+                  {belowBestFit === null
+                    ? "--"
+                    : `${formatDrillBitLabel(belowBestFit)} (${belowBestFit.diameterIn.toFixed(4)} in)`}
+                </strong>
+                <span>
+                  {belowBestFit === null
+                    ? ""
+                    : `${formatDrillFamily(belowBestFit)} · ${inchesToMm(belowBestFit.diameterIn).toFixed(3)} mm`}
+                </span>
+              </div>
+              <div>
+                <span>Best fit (not over)</span>
+                <strong>
+                  {closestNotOver === null
+                    ? "--"
+                    : `${formatDrillBitLabel(closestNotOver)} (${closestNotOver.diameterIn.toFixed(4)} in)`}
+                </strong>
+                <span>
+                  {closestNotOver === null ? "No standard drill <= target" : formatDrillFamily(closestNotOver)}
+                </span>
+                <span>
+                  {closestNotOver === null
+                    ? ""
+                    : `Exact metric: ${inchesToMm(closestNotOver.diameterIn).toFixed(3)} mm`}
+                </span>
+              </div>
+              <div>
+                <span>One above</span>
+                <strong>
+                  {aboveBestFit === null
+                    ? "--"
+                    : `${formatDrillBitLabel(aboveBestFit)} (${aboveBestFit.diameterIn.toFixed(4)} in)`}
+                </strong>
+                <span>
+                  {aboveBestFit === null
+                    ? ""
+                    : `${formatDrillFamily(aboveBestFit)} · ${inchesToMm(aboveBestFit.diameterIn).toFixed(3)} mm`}
+                </span>
+              </div>
+            </div>
+          </div>
           <p>
             Enter bore geometry and tone-hole dimensions, then evaluate quarter-wave air-column
             behavior to guide hole placement decisions.
@@ -836,7 +1060,8 @@ export default function App() {
                 <th>Part label</th>
                 <th>Source</th>
                 <th>z (mm)</th>
-                <th>Diameter (mm)</th>
+                <th>Inner dia (mm)</th>
+                <th>Outer dia (mm)</th>
                 <th></th>
               </tr>
             </thead>
@@ -894,6 +1119,20 @@ export default function App() {
                     />
                   </td>
                   <td>
+                    {source === "mouthpiece" ? (
+                      <span className="muted-cell">—</span>
+                    ) : (
+                      <input
+                        type="number"
+                        placeholder="optional"
+                        value={segment.outerDiameterMm ?? ""}
+                        onChange={(e) =>
+                          updateSegmentOuterDiameter(segment.id, e.target.value)
+                        }
+                      />
+                    )}
+                  </td>
+                  <td>
                     <button
                       type="button"
                       className="danger"
@@ -946,6 +1185,7 @@ export default function App() {
                 <th>z from bell (mm)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
+                <th>Wall (mm)</th>
                 <th>Target</th>
                 <th></th>
               </tr>
@@ -979,6 +1219,32 @@ export default function App() {
                       value={hole.chimneyMm}
                       onChange={(e) => updateHole(hole.id, "chimneyMm", Number(e.target.value))}
                     />
+                  </td>
+                  <td>
+                    {(() => {
+                      const distMm = totalBoreLengthMm(acousticSegments) - hole.zMm;
+                      const outerDia = outerDiameterAtMm(acousticSegments, distMm);
+                      const innerDia = results.find((r) => r.id === hole.id)?.localBoreMm;
+                      const wallMm =
+                        outerDia !== null && innerDia !== undefined
+                          ? Math.max(0, (outerDia - innerDia) / 2)
+                          : null;
+                      return wallMm !== null ? (
+                        <div className="wall-cell">
+                          <span>{wallMm.toFixed(2)}</span>
+                          <button
+                            type="button"
+                            className="sync-btn"
+                            title="Set chimney = wall thickness"
+                            onClick={() => updateHole(hole.id, "chimneyMm", wallMm)}
+                          >
+                            ← use
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="muted-cell">—</span>
+                      );
+                    })()}
                   </td>
                   <td>
                     <input
@@ -1095,9 +1361,12 @@ export default function App() {
                 <th>Hole</th>
                 <th>z</th>
                 <th>Local bore</th>
+                <th>Wall</th>
                 <th>L_eff</th>
                 <th>f1</th>
                 <th>f3</th>
+                <th>Register</th>
+                <th>Target Hz</th>
                 <th>Nearest</th>
                 <th>Target cents</th>
                 <th>Recommendation</th>
@@ -1109,9 +1378,22 @@ export default function App() {
                   <td>{result.label}</td>
                   <td>{result.zMm.toFixed(1)} mm</td>
                   <td>{result.localBoreMm.toFixed(2)} mm</td>
+                  <td>
+                    {result.wallThicknessMm !== null
+                      ? `${result.wallThicknessMm.toFixed(2)} mm`
+                      : "—"}
+                  </td>
                   <td>{result.effectiveLengthMm.toFixed(2)} mm</td>
                   <td>{result.predictedFundamentalHz.toFixed(2)} Hz</td>
                   <td>{result.predictedThirdHz.toFixed(2)} Hz</td>
+                  <td className="register-cell">
+                    {result.activeRegister === "third" ? "Clarion" : "Fund."}
+                  </td>
+                  <td className="target-hz-cell">
+                    {result.targetHz !== null
+                      ? `${result.targetHz.toFixed(2)} Hz`
+                      : "—"}
+                  </td>
                   <td>
                     {result.nearestNote} ({result.centsErrorToNearest.toFixed(1)} cents)
                   </td>

@@ -3,6 +3,7 @@ export type BoreSegment = {
   label: string;
   zMm: number;
   diameterMm: number;
+  outerDiameterMm?: number;
 };
 
 export type ToneHole = {
@@ -27,9 +28,13 @@ export type HoleEvaluation = {
   label: string;
   zMm: number;
   localBoreMm: number;
+  wallThicknessMm: number | null;
   effectiveLengthMm: number;
   predictedFundamentalHz: number;
   predictedThirdHz: number;
+  activeRegister: "fundamental" | "third";
+  predictedActiveHz: number;
+  targetHz: number | null;
   nearestNote: string;
   centsErrorToNearest: number;
   centsErrorToTarget: number | null;
@@ -70,6 +75,39 @@ function clamp(value: number, min: number, max: number): number {
 
 export function speedOfSoundMs(tempC: number): number {
   return 331.3 + 0.606 * tempC;
+}
+
+export function outerDiameterAtMm(segments: BoreSegment[], xMm: number): number | null {
+  const points = [...segments]
+    .filter((s) => s.outerDiameterMm !== undefined && s.outerDiameterMm !== null)
+    .sort((a, b) => a.zMm - b.zMm);
+
+  if (points.length === 0) {
+    return null;
+  }
+
+  const total = Math.max(...segments.map((s) => Math.max(s.zMm, 0)), 0);
+  const x = clamp(xMm, 0, total);
+  const z = total - x;
+
+  if (z <= points[0].zMm) {
+    return points[0].outerDiameterMm!;
+  }
+  if (z >= points[points.length - 1].zMm) {
+    return points[points.length - 1].outerDiameterMm!;
+  }
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (z <= b.zMm) {
+      const dz = Math.max(b.zMm - a.zMm, 0.001);
+      const t = (z - a.zMm) / dz;
+      return a.outerDiameterMm! + t * (b.outerDiameterMm! - a.outerDiameterMm!);
+    }
+  }
+
+  return points[points.length - 1].outerDiameterMm!;
 }
 
 export function totalBoreLengthMm(segments: BoreSegment[]): number {
@@ -206,8 +244,17 @@ export function evaluateToneHoles(
   segments: BoreSegment[],
   holes: ToneHole[],
   tempC: number,
-  a4Hz = 440
+  a4Hz = 440,
+  fingerings: Fingering[] = []
 ): HoleEvaluation[] {
+  // Build a register map: if any fingering uses a hole in "third" register, treat it as third.
+  const registerMap = new Map<string, "fundamental" | "third">();
+  for (const f of fingerings) {
+    if (f.register === "third" || !registerMap.has(f.ventHoleId)) {
+      registerMap.set(f.ventHoleId, f.register);
+    }
+  }
+
   const cMs = speedOfSoundMs(tempC);
 
   return [...holes]
@@ -215,25 +262,40 @@ export function evaluateToneHoles(
     .map((hole) => {
       const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
       const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+      const outerDia = outerDiameterAtMm(segments, holeDistanceMm);
+      const wallThicknessMm =
+        outerDia !== null ? Math.max(0, (outerDia - localBoreMm) / 2) : null;
       const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
       const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
       const thirdHz = oddHarmonic(fundamentalHz, 2);
+
+      const activeRegister = registerMap.get(hole.id) ?? "fundamental";
+      const predictedActiveHz = activeRegister === "third" ? thirdHz : fundamentalHz;
+
       const nearestMidi = Math.round(hzToMidi(fundamentalHz, a4Hz));
       const nearestHz = midiToHz(nearestMidi, a4Hz);
       const centsToNearest = centsError(fundamentalHz, nearestHz);
 
       const targetMidi = parseScientificPitch(hole.targetNote);
+      const targetHz = targetMidi === null ? null : midiToHz(targetMidi, a4Hz);
+      // centsToTarget always compares f1 to the hole's chalumeau-register targetNote.
+      // hole.targetNote is always a chalumeau pitch; recommendations must stay consistent with it.
+      // activeRegister/predictedActiveHz are informational (which register fingerings use this hole).
       const centsToTarget =
-        targetMidi === null ? null : centsError(fundamentalHz, midiToHz(targetMidi, a4Hz));
+        targetHz === null ? null : centsError(fundamentalHz, targetHz);
 
       return {
         id: hole.id,
         label: hole.label,
         zMm: hole.zMm,
         localBoreMm,
+        wallThicknessMm,
         effectiveLengthMm,
         predictedFundamentalHz: fundamentalHz,
         predictedThirdHz: thirdHz,
+        activeRegister,
+        predictedActiveHz,
+        targetHz,
         nearestNote: midiToName(nearestMidi),
         centsErrorToNearest: centsToNearest,
         centsErrorToTarget: centsToTarget,

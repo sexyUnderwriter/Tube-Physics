@@ -30,31 +30,36 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "seg-lower-joint-bottom",
       "label": "Lower joint (bottom)",
       "zMm": 200,
-      "diameterMm": 14.8
+      "diameterMm": 14.8,
+      "outerDiameterMm": 19.0
     },
     {
       "id": "seg-middle-joint",
       "label": "Middle joint main bore",
       "zMm": 350,
-      "diameterMm": 14.7
+      "diameterMm": 14.7,
+      "outerDiameterMm": 19.0
     },
     {
       "id": "seg-upper-joint-top",
       "label": "Upper joint (top)",
       "zMm": 511.7,
-      "diameterMm": 14.6
+      "diameterMm": 14.6,
+      "outerDiameterMm": 19.0
     },
     {
       "id": "seg-barrel-lower",
       "label": "Barrel lower socket",
       "zMm": 533.7,
-      "diameterMm": 14.6
+      "diameterMm": 14.6,
+      "outerDiameterMm": 20.0
     },
     {
       "id": "seg-barrel-top",
       "label": "Barrel mouthpiece socket",
       "zMm": 556.7,
-      "diameterMm": 14.8
+      "diameterMm": 14.8,
+      "outerDiameterMm": 20.0
     }
   ],
   "mouthpiece": {
