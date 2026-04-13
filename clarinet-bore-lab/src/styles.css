@@ -27,11 +27,16 @@ body {
     radial-gradient(circle at 96% 0%, rgba(92, 157, 224, 0.34), transparent 26%),
     linear-gradient(135deg, var(--bg-1), var(--bg-2));
   min-height: 100vh;
+  padding-inline: 0.8rem;
+}
+
+#root {
+  width: 100%;
 }
 
 .page-shell {
-  width: min(1220px, 94vw);
-  margin: 2rem auto 3rem;
+  width: min(1440px, 96vw);
+  margin: 1.25rem auto 3rem;
   animation: page-rise 480ms ease-out;
 }
 

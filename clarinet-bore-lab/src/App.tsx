@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 import {
   BoreSegment,
   Fingering,
@@ -11,6 +11,260 @@ import {
   totalBoreLengthMm,
 } from "./model";
 
+type MouthpiecePreset = {
+  id: string;
+  label: string;
+  instrument: "Eb clarinet" | "Bb clarinet" | "Tenor sax";
+  openingHundredthMm: number;
+  openingMm: number;
+  facingLength: "Short" | "Medium" | "Long";
+  acousticInsertMm: number;
+  shankBoreMm: number;
+  sourceUrl: string;
+};
+
+type CsvImportDiameterMode = "avg" | "min" | "max";
+
+type ImportSegmentDraft = {
+  label: string;
+  lengthMm: number;
+  startDiameterMm: number;
+  endDiameterMm: number;
+};
+
+type ImportHoleDraft = {
+  label: string;
+  positionMm: number;
+  diameterMm: number;
+  chimneyMm: number;
+};
+
+type CsvImportPreview = {
+  instrument: string;
+  catalogNumber: string;
+  segments: ImportSegmentDraft[];
+  holes: ImportHoleDraft[];
+  warnings: string[];
+};
+
+type SectionPoint = { xMm: number; diameterMm: number };
+type SectionHole = { label: string; xMm: number; diameterMm: number };
+
+function splitCsvLine(line: string): string[] {
+  return line.split(",").map((cell) => cell.trim());
+}
+
+function parseFlexibleNumber(raw: string): number | null {
+  const normalized = raw.replace(/[^0-9.+-]/g, "").replace(/-+$/, "");
+  if (normalized.length === 0 || normalized === "." || normalized === "-" || normalized === "+") {
+    return null;
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function pickInsideDiameter(
+  minValue: number | null,
+  maxValue: number | null,
+  mode: CsvImportDiameterMode
+): number | null {
+  if (mode === "min") {
+    return minValue ?? maxValue;
+  }
+  if (mode === "max") {
+    return maxValue ?? minValue;
+  }
+  if (minValue !== null && maxValue !== null) {
+    return (minValue + maxValue) * 0.5;
+  }
+  return minValue ?? maxValue;
+}
+
+function extractHoleDiameterMm(text: string): number | null {
+  const diameterMatch = text.match(/diameter\s*([0-9]+(?:\.[0-9]+)?)\s*mm/i);
+  if (diameterMatch) {
+    return Number(diameterMatch[1]);
+  }
+  const parentheticalMatch = text.match(/\(([0-9]+(?:\.[0-9]+)?)\s*mm\)/i);
+  if (parentheticalMatch) {
+    return Number(parentheticalMatch[1]);
+  }
+  return null;
+}
+
+function normalizeHoleLabel(text: string): string {
+  return text
+    .replace(/center of\s*/i, "")
+    .replace(/\s*\([^)]*\)\s*/g, "")
+    .replace(/\s*diameter\s*[0-9.]+\s*mm\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseDennerStyleCsv(
+  csvText: string,
+  diameterMode: CsvImportDiameterMode,
+  defaultChimneyMm: number
+): CsvImportPreview {
+  const lines = csvText.split(/\r?\n/);
+  const warnings: string[] = [];
+
+  const sections: Array<{
+    name: string;
+    points: SectionPoint[];
+    holes: SectionHole[];
+    maxLengthMm: number;
+  }> = [];
+
+  let instrument = "Imported Instrument";
+  let catalogNumber = "";
+  let currentSection: {
+    name: string;
+    points: SectionPoint[];
+    holes: SectionHole[];
+    maxLengthMm: number;
+  } | null = null;
+
+  function closeSection(): void {
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+    currentSection = null;
+  }
+
+  for (const line of lines) {
+    if (line.trim().length === 0) {
+      continue;
+    }
+    const cols = splitCsvLine(line);
+    const first = cols[0] ?? "";
+
+    if (first.startsWith("Instrument:")) {
+      instrument = cols.slice(0, 3).join(" ").replace(/\s+/g, " ").trim();
+      continue;
+    }
+    if (first.startsWith("Cat. No.:")) {
+      catalogNumber = cols.slice(0, 2).join(" ").replace(/\s+/g, " ").trim();
+      continue;
+    }
+
+    if (/^PART:/i.test(first)) {
+      closeSection();
+      const name = first
+        .replace(/^PART:\s*/i, "")
+        .replace(/\s*\(Page[^)]*\)\s*/i, "")
+        .trim();
+      currentSection = {
+        name,
+        points: [],
+        holes: [],
+        maxLengthMm: 0,
+      };
+      continue;
+    }
+
+    if (!currentSection || /^Length\s*\(mm\)/i.test(first)) {
+      continue;
+    }
+
+    const rowLengthMm = parseFlexibleNumber(first);
+    if (rowLengthMm !== null) {
+      currentSection.maxLengthMm = Math.max(currentSection.maxLengthMm, rowLengthMm);
+    }
+
+    const insideMin = parseFlexibleNumber(cols[1] ?? "");
+    const insideMax = parseFlexibleNumber(cols[2] ?? "");
+    const chosenInside = pickInsideDiameter(insideMin, insideMax, diameterMode);
+
+    if (rowLengthMm !== null && chosenInside !== null) {
+      currentSection.points.push({ xMm: rowLengthMm, diameterMm: chosenInside });
+    }
+
+    const remarkText = [first, cols[7] ?? ""].join(" ").trim();
+    if (/center of .*hole/i.test(remarkText)) {
+      if (rowLengthMm === null) {
+        warnings.push(
+          `${currentSection.name}: could not place hole row \"${first}\" because no numeric length was provided.`
+        );
+        continue;
+      }
+
+      const parsedHoleDiameter = extractHoleDiameterMm([first, cols[7] ?? ""].join(" "));
+      const label = normalizeHoleLabel(remarkText) || `Hole @ ${rowLengthMm.toFixed(1)} mm`;
+      currentSection.holes.push({
+        label,
+        xMm: rowLengthMm,
+        diameterMm: parsedHoleDiameter ?? 7,
+      });
+    }
+  }
+
+  closeSection();
+
+  const segments: ImportSegmentDraft[] = [];
+  const holes: ImportHoleDraft[] = [];
+  let runningOffsetMm = 0;
+
+  for (const section of sections) {
+    const dedupedPointMap = new Map<number, number>();
+    for (const point of section.points) {
+      dedupedPointMap.set(point.xMm, point.diameterMm);
+    }
+    const sortedPoints = [...dedupedPointMap.entries()]
+      .map(([xMm, diameterMm]) => ({ xMm, diameterMm }))
+      .sort((a, b) => a.xMm - b.xMm);
+
+    if (sortedPoints.length < 2) {
+      warnings.push(`${section.name}: not enough valid inside-diameter points to build segments.`);
+    }
+
+    for (let i = 1; i < sortedPoints.length; i += 1) {
+      const prev = sortedPoints[i - 1];
+      const curr = sortedPoints[i];
+      const lengthMm = curr.xMm - prev.xMm;
+      if (lengthMm <= 0.01) {
+        continue;
+      }
+      segments.push({
+        label: `${section.name} ${i}`,
+        lengthMm,
+        startDiameterMm: prev.diameterMm,
+        endDiameterMm: curr.diameterMm,
+      });
+    }
+
+    for (const hole of section.holes) {
+      holes.push({
+        label: hole.label,
+        positionMm: runningOffsetMm + hole.xMm,
+        diameterMm: hole.diameterMm,
+        chimneyMm: defaultChimneyMm,
+      });
+    }
+
+    const sectionLength =
+      section.maxLengthMm > 0
+        ? section.maxLengthMm
+        : sortedPoints.length > 0
+          ? sortedPoints[sortedPoints.length - 1].xMm
+          : 0;
+
+    runningOffsetMm += sectionLength;
+  }
+
+  if (segments.length === 0) {
+    warnings.push("No bore segments were generated from this file.");
+  }
+
+  return {
+    instrument,
+    catalogNumber,
+    segments,
+    holes,
+    warnings,
+  };
+}
+
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -18,18 +272,21 @@ function makeId(prefix: string): string {
 const initialSegments: BoreSegment[] = [
   {
     id: makeId("seg"),
+    label: "Upper joint",
     lengthMm: 240,
     startDiameterMm: 14.6,
     endDiameterMm: 14.4,
   },
   {
     id: makeId("seg"),
+    label: "Middle joint",
     lengthMm: 220,
     startDiameterMm: 14.4,
     endDiameterMm: 14.8,
   },
   {
     id: makeId("seg"),
+    label: "Lower joint",
     lengthMm: 180,
     startDiameterMm: 14.8,
     endDiameterMm: 15.2,
@@ -150,24 +407,103 @@ const initialFingerings: Fingering[] = [
   },
 ];
 
+const mouthpiecePresets: MouthpiecePreset[] = [
+  {
+    id: "vandoren-eb-5rv",
+    label: "Vandoren 5RV (Eb)",
+    instrument: "Eb clarinet",
+    openingHundredthMm: 106.5,
+    openingMm: 1.065,
+    facingLength: "Short",
+    acousticInsertMm: 18,
+    shankBoreMm: 12.6,
+    sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/5rv-eb-clarinet-reeds/",
+  },
+  {
+    id: "vandoren-bb-5rv-lyre",
+    label: "Vandoren 5RV Lyre (Bb)",
+    instrument: "Bb clarinet",
+    openingHundredthMm: 109.1,
+    openingMm: 1.091,
+    facingLength: "Medium",
+    acousticInsertMm: 21,
+    shankBoreMm: 14.8,
+    sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/5rv-lyre-bb-clarinet-mouthpiece/",
+  },
+  {
+    id: "vandoren-tenor-v16-t6",
+    label: "Vandoren V16 T6 (Tenor)",
+    instrument: "Tenor sax",
+    openingHundredthMm: 250,
+    openingMm: 2.5,
+    facingLength: "Long",
+    acousticInsertMm: 24,
+    shankBoreMm: 16.8,
+    sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/t6-v16-tenor-saxophone-mouthpiece/",
+  },
+];
+
 export default function App() {
   const [name, setName] = useState("Prototype Clarinet Bore");
   const [tempC, setTempC] = useState(20);
+  const [pitchStandardHz, setPitchStandardHz] = useState(440);
   const [segments, setSegments] = useState<BoreSegment[]>(initialSegments);
   const [holes, setHoles] = useState<ToneHole[]>(initialHoles);
   const [toleranceCents, setToleranceCents] = useState(10);
   const [fingerings, setFingerings] = useState<Fingering[]>(initialFingerings);
+  const [selectedMouthpieceId, setSelectedMouthpieceId] = useState(mouthpiecePresets[1].id);
+  const [activeMouthpiece, setActiveMouthpiece] = useState<MouthpiecePreset>(
+    mouthpiecePresets[1]
+  );
+  const [importDiameterMode, setImportDiameterMode] = useState<CsvImportDiameterMode>("avg");
+  const [importDefaultChimneyMm, setImportDefaultChimneyMm] = useState(3);
+  const [importFileName, setImportFileName] = useState("");
+  const [importPreview, setImportPreview] = useState<CsvImportPreview | null>(null);
 
-  const totalLengthMm = useMemo(() => totalBoreLengthMm(segments), [segments]);
+  const acousticSegments = useMemo<BoreSegment[]>(() => {
+    const firstBore = segments[0]?.startDiameterMm ?? activeMouthpiece.shankBoreMm;
+    return [
+      {
+        id: "mouthpiece-segment",
+        label: "Mouthpiece",
+        lengthMm: activeMouthpiece.acousticInsertMm,
+        startDiameterMm: activeMouthpiece.shankBoreMm,
+        endDiameterMm: firstBore,
+      },
+      ...segments,
+    ];
+  }, [activeMouthpiece.acousticInsertMm, activeMouthpiece.shankBoreMm, segments]);
+
+  const offsetHoles = useMemo<ToneHole[]>(
+    () =>
+      holes.map((hole) => ({
+        ...hole,
+        positionMm: hole.positionMm + activeMouthpiece.acousticInsertMm,
+      })),
+    [holes, activeMouthpiece.acousticInsertMm]
+  );
+
+  const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
   const results = useMemo(
-    () => evaluateToneHoles(segments, holes, tempC),
-    [segments, holes, tempC]
+    () => evaluateToneHoles(acousticSegments, offsetHoles, tempC, pitchStandardHz),
+    [acousticSegments, offsetHoles, tempC, pitchStandardHz]
   );
-  const warnings = useMemo(() => spacingWarnings(holes, segments), [holes, segments]);
+  const warnings = useMemo(
+    () => spacingWarnings(offsetHoles, acousticSegments),
+    [offsetHoles, acousticSegments]
+  );
   const fingeringResults = useMemo(
-    () => evaluateFingerings(segments, holes, fingerings, tempC, toleranceCents),
-    [segments, holes, fingerings, tempC, toleranceCents]
+    () =>
+      evaluateFingerings(
+        acousticSegments,
+        offsetHoles,
+        fingerings,
+        tempC,
+        toleranceCents,
+        pitchStandardHz
+      ),
+    [acousticSegments, offsetHoles, fingerings, tempC, toleranceCents, pitchStandardHz]
   );
   const passCount = useMemo(
     () => fingeringResults.filter((result) => result.withinTolerance).length,
@@ -184,7 +520,10 @@ export default function App() {
     );
     return sum / withTargets.length;
   }, [fingeringResults]);
-  const profilePoints = useMemo(() => sampleBoreProfile(segments, 140), [segments]);
+  const profilePoints = useMemo(
+    () => sampleBoreProfile(acousticSegments, 140),
+    [acousticSegments]
+  );
   const boreSvg = useMemo(() => {
     const width = 980;
     const height = 300;
@@ -218,7 +557,7 @@ export default function App() {
       });
 
     const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
-    const holesOnBore = [...holes].sort((a, b) => a.positionMm - b.positionMm);
+    const holesOnBore = [...offsetHoles].sort((a, b) => a.positionMm - b.positionMm);
 
     return {
       width,
@@ -229,15 +568,83 @@ export default function App() {
       xToSvg,
       rToSvg,
     };
-  }, [holes, profilePoints, totalLengthMm]);
+  }, [offsetHoles, profilePoints, totalLengthMm]);
+
+  function applyMouthpiecePreset(presetId: string): void {
+    const preset = mouthpiecePresets.find((candidate) => candidate.id === presetId);
+    if (!preset) {
+      return;
+    }
+    setActiveMouthpiece(preset);
+  }
+
+  async function handleCsvFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const text = await file.text();
+    const preview = parseDennerStyleCsv(text, importDiameterMode, importDefaultChimneyMm);
+    setImportFileName(file.name);
+    setImportPreview(preview);
+  }
+
+  function applyImportedData(mode: "replace" | "append"): void {
+    if (!importPreview) {
+      return;
+    }
+
+    const importedSegments: BoreSegment[] = importPreview.segments.map((segment) => ({
+      id: makeId("seg"),
+      label: segment.label,
+      lengthMm: segment.lengthMm,
+      startDiameterMm: segment.startDiameterMm,
+      endDiameterMm: segment.endDiameterMm,
+    }));
+
+    const importedHoles: ToneHole[] = importPreview.holes.map((hole) => ({
+      id: makeId("hole"),
+      label: hole.label,
+      positionMm: hole.positionMm,
+      diameterMm: hole.diameterMm,
+      chimneyMm: hole.chimneyMm,
+      targetNote: "",
+    }));
+
+    if (mode === "replace") {
+      if (importedSegments.length > 0) {
+        setSegments(importedSegments);
+      }
+      setHoles(importedHoles);
+      setFingerings([]);
+      if (importPreview.instrument) {
+        setName(importPreview.instrument);
+      }
+      return;
+    }
+
+    if (importedSegments.length > 0) {
+      setSegments((prev) => [...prev, ...importedSegments]);
+    }
+    setHoles((prev) => [...prev, ...importedHoles]);
+  }
 
   function updateSegment(
     id: string,
-    key: keyof Omit<BoreSegment, "id">,
+    key: "lengthMm" | "startDiameterMm" | "endDiameterMm",
     value: number
   ): void {
     setSegments((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [key]: Number.isFinite(value) ? value : 0 } : s))
+    );
+  }
+
+  function updateSegmentLabel(id: string, value: string): void {
+    setSegments((prev) =>
+      prev.map((segment) =>
+        segment.id === id ? { ...segment, label: value } : segment
+      )
     );
   }
 
@@ -285,6 +692,108 @@ export default function App() {
               onChange={(e) => setTempC(Number(e.target.value))}
             />
           </label>
+            <label>
+              Pitch standard A4 (Hz)
+              <input
+                type="number"
+                min={380}
+                max={450}
+                step={0.1}
+                value={pitchStandardHz}
+                onChange={(e) => setPitchStandardHz(Number(e.target.value))}
+              />
+            </label>
+            <div className="badge-row">
+              <button type="button" onClick={() => setPitchStandardHz(442)}>
+                A=442
+              </button>
+              <button type="button" onClick={() => setPitchStandardHz(415)}>
+                A=415
+              </button>
+              <button type="button" onClick={() => setPitchStandardHz(392)}>
+                A=392
+              </button>
+            </div>
+          <label>
+            Mouthpiece preset
+            <select
+              value={selectedMouthpieceId}
+              onChange={(e) => setSelectedMouthpieceId(e.target.value)}
+            >
+              {mouthpiecePresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+            <label>
+              Data sheet import mode
+              <select
+                value={importDiameterMode}
+                onChange={(e) => setImportDiameterMode(e.target.value as CsvImportDiameterMode)}
+              >
+                <option value="avg">Inside diameter = average(min, max)</option>
+                <option value="min">Inside diameter = min</option>
+                <option value="max">Inside diameter = max</option>
+              </select>
+            </label>
+
+            <label>
+              Imported hole chimney default (mm)
+              <input
+                type="number"
+                value={importDefaultChimneyMm}
+                onChange={(e) => setImportDefaultChimneyMm(Number(e.target.value))}
+              />
+            </label>
+
+            <label>
+              Import Denner-style CSV
+              <input type="file" accept=".csv,text/csv" onChange={handleCsvFileChange} />
+            </label>
+
+            {importPreview && (
+              <div>
+                <p className="math">
+                  Imported {importFileName}: {importPreview.segments.length} segments, {" "}
+                  {importPreview.holes.length} holes.
+                </p>
+                <p className="math">
+                  Source: {importPreview.instrument}
+                  {importPreview.catalogNumber ? ` | ${importPreview.catalogNumber}` : ""}
+                </p>
+                {importPreview.warnings.length > 0 && (
+                  <div className="warnings">
+                    <h3>Import warnings ({importPreview.warnings.length})</h3>
+                    <ul>
+                      {importPreview.warnings.slice(0, 6).map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="badge-row">
+                  <button type="button" onClick={() => applyImportedData("replace")}>
+                    Replace with imported data
+                  </button>
+                  <button type="button" onClick={() => applyImportedData("append")}>
+                    Append imported data
+                  </button>
+                </div>
+              </div>
+            )}
+
+          <button type="button" onClick={() => applyMouthpiecePreset(selectedMouthpieceId)}>
+            Apply mouthpiece preset
+          </button>
+          <p className="math">
+            Active: {activeMouthpiece.label} ({activeMouthpiece.instrument}), tip opening{" "}
+            {activeMouthpiece.openingMm.toFixed(3)} mm ({activeMouthpiece.openingHundredthMm} x
+            1/100 mm), facing {activeMouthpiece.facingLength}. Acoustic insert ={" "}
+            {activeMouthpiece.acousticInsertMm.toFixed(1)} mm.
+          </p>
           <div className="stat-row">
             <div>
               <span>Total length</span>
@@ -309,6 +818,7 @@ export default function App() {
                   ...prev,
                   {
                     id: makeId("seg"),
+                    label: `Segment ${prev.length + 1}`,
                     lengthMm: 120,
                     startDiameterMm: 14.8,
                     endDiameterMm: 15,
@@ -333,7 +843,13 @@ export default function App() {
             <tbody>
               {segments.map((segment, index) => (
                 <tr key={segment.id}>
-                  <td>S{index + 1}</td>
+                  <td>
+                    <input
+                      value={segment.label}
+                      placeholder={`S${index + 1}`}
+                      onChange={(e) => updateSegmentLabel(segment.id, e.target.value)}
+                    />
+                  </td>
                   <td>
                     <input
                       type="number"
@@ -523,7 +1039,7 @@ export default function App() {
               })}
 
               <text x="24" y={boreSvg.height - 10} className="axis-label">
-                0 mm (mouthpiece end)
+                0 mm (reed tip)
               </text>
               <text x={boreSvg.width - 24} y={boreSvg.height - 10} className="axis-label axis-right">
                 {totalLengthMm.toFixed(1)} mm (bell end)
@@ -739,6 +1255,7 @@ export default function App() {
         <span>
           Model scope: first-order closed-open clarinet approximation with hole branch correction.
           Validate final dimensions with impedance or prototype measurements.
+          Active preset source: <a href={activeMouthpiece.sourceUrl}>{activeMouthpiece.sourceUrl}</a>.
         </span>
       </footer>
     </div>

@@ -1,5 +1,6 @@
 export type BoreSegment = {
   id: string;
+  label: string;
   lengthMm: number;
   startDiameterMm: number;
   endDiameterMm: number;
@@ -105,12 +106,12 @@ function oddHarmonic(fundamentalHz: number, harmonicIndex: number): number {
   return fundamentalHz * n;
 }
 
-function hzToMidi(freq: number): number {
-  return 69 + 12 * Math.log2(freq / 440);
+function hzToMidi(freq: number, a4Hz: number): number {
+  return 69 + 12 * Math.log2(freq / a4Hz);
 }
 
-function midiToHz(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
+function midiToHz(midi: number, a4Hz: number): number {
+  return a4Hz * Math.pow(2, (midi - 69) / 12);
 }
 
 function midiToName(midi: number): string {
@@ -184,7 +185,8 @@ function findHoleById(holes: ToneHole[], id: string): ToneHole | null {
 export function evaluateToneHoles(
   segments: BoreSegment[],
   holes: ToneHole[],
-  tempC: number
+  tempC: number,
+  a4Hz = 440
 ): HoleEvaluation[] {
   const cMs = speedOfSoundMs(tempC);
 
@@ -195,13 +197,13 @@ export function evaluateToneHoles(
       const effectiveLengthMm = effectiveLengthForHole(hole, localBoreMm);
       const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
       const thirdHz = oddHarmonic(fundamentalHz, 2);
-      const nearestMidi = Math.round(hzToMidi(fundamentalHz));
-      const nearestHz = midiToHz(nearestMidi);
+      const nearestMidi = Math.round(hzToMidi(fundamentalHz, a4Hz));
+      const nearestHz = midiToHz(nearestMidi, a4Hz);
       const centsToNearest = centsError(fundamentalHz, nearestHz);
 
       const targetMidi = parseScientificPitch(hole.targetNote);
       const centsToTarget =
-        targetMidi === null ? null : centsError(fundamentalHz, midiToHz(targetMidi));
+        targetMidi === null ? null : centsError(fundamentalHz, midiToHz(targetMidi, a4Hz));
 
       return {
         id: hole.id,
@@ -224,7 +226,8 @@ export function evaluateFingerings(
   holes: ToneHole[],
   fingerings: Fingering[],
   tempC: number,
-  toleranceCents: number
+  toleranceCents: number,
+  a4Hz = 440
 ): FingeringEvaluation[] {
   const cMs = speedOfSoundMs(tempC);
   const tol = Math.max(Math.abs(toleranceCents), 0.1);
@@ -261,14 +264,14 @@ export function evaluateFingerings(
         ventHoleLabel: hole.label,
         register: fingering.register,
         predictedHz,
-        nearestNote: midiToName(Math.round(hzToMidi(predictedHz))),
+        nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
         centsErrorToTarget: null,
         withinTolerance: false,
         note: "Target note format should look like E4, F#4, or Bb3.",
       };
     }
 
-    const targetHz = midiToHz(targetMidi);
+    const targetHz = midiToHz(targetMidi, a4Hz);
     const cents = centsError(predictedHz, targetHz);
 
     return {
@@ -278,7 +281,7 @@ export function evaluateFingerings(
       ventHoleLabel: hole.label,
       register: fingering.register,
       predictedHz,
-      nearestNote: midiToName(Math.round(hzToMidi(predictedHz))),
+      nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
       centsErrorToTarget: cents,
       withinTolerance: Math.abs(cents) <= tol,
       note:

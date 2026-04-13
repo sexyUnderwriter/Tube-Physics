@@ -15,6 +15,7 @@ React + TypeScript UI for experimenting with clarinet bore geometry and evaluati
 - Adds a fingering table (target note + vent hole + register)
 - Evaluates full-scale intonation with configurable pass-band tolerance
 - Reports pass rate and mean absolute cents error across fingerings
+- Includes mouthpiece presets with published tip opening and facing values
 
 ## Physics model (first-order)
 
@@ -36,4 +37,9 @@ This is intentionally fast for design iteration, not a full impedance solver.
 ## Notes
 
 - Inputs are metric (mm, C).
+- Mouthpiece presets use published Vandoren opening/facing values:
+   - Eb clarinet 5RV: opening 106.5 (1/100 mm), facing Short
+   - Bb clarinet 5RV Lyre: opening 109.1 (1/100 mm), facing Medium
+   - Tenor sax V16 T6: opening 250 (1/100 mm), facing Long
+- Preset acoustic insert length and shank bore are modeling assumptions for quick iteration.
 - Use this as a design screen before prototype or detailed impedance modeling.
