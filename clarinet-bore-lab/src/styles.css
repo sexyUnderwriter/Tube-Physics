@@ -35,8 +35,9 @@ body {
 }
 
 .page-shell {
-  width: min(1320px, 94vw);
-  margin: 0.85rem auto 1.6rem;
+  width: 100%;
+  margin: 0.85rem 0 1.6rem;
+  padding-inline: 0.35rem;
   animation: page-rise 480ms ease-out;
 }
 
@@ -331,6 +332,16 @@ thead th {
   font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
   text-anchor: middle;
+}
+
+.hole-label-box {
+  fill: rgba(255, 252, 247, 0.96);
+  stroke: rgba(94, 45, 16, 0.18);
+}
+
+.hole-label-leader {
+  stroke: rgba(94, 45, 16, 0.45);
+  stroke-width: 1;
 }
 
 .axis-label {

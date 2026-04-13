@@ -464,7 +464,36 @@ export default function App() {
       });
 
     const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
-    const holesOnBore = [...holes].sort((a, b) => a.zMm - b.zMm);
+    const labelLaneHeight = 18;
+    const minLabelGap = 10;
+    const laneRightEdges: number[] = [];
+    const holesOnBore = [...holes]
+      .sort((a, b) => a.zMm - b.zMm)
+      .map((hole) => {
+        const x = zToSvg(Math.max(hole.zMm, 0));
+        const localRadius = rToSvg(hole.diameterMm * 0.5);
+        const labelWidth = Math.max(hole.label.length * 6.6 + 12, 44);
+        const leftEdge = x - labelWidth / 2;
+
+        let laneIndex = 0;
+        while (
+          laneIndex < laneRightEdges.length &&
+          leftEdge <= laneRightEdges[laneIndex] + minLabelGap
+        ) {
+          laneIndex += 1;
+        }
+
+        laneRightEdges[laneIndex] = x + labelWidth / 2;
+
+        return {
+          ...hole,
+          x,
+          localRadius,
+          labelWidth,
+          labelY: centerY - localRadius - 36 - laneIndex * labelLaneHeight,
+          dotY: centerY - localRadius - 28,
+        };
+      });
 
     return {
       width,
@@ -905,11 +934,16 @@ export default function App() {
             </button>
           </div>
 
+          <p className="math">
+            Tone-hole z uses the same convention as the bore profile: 0 mm is the bell end, and
+            larger z values move upward toward the barrel and mouthpiece.
+          </p>
+
           <table>
             <thead>
               <tr>
                 <th>Label</th>
-                <th>z (mm)</th>
+                <th>z from bell (mm)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
                 <th>Target</th>
@@ -1001,24 +1035,37 @@ export default function App() {
               <polygon points={boreSvg.polygon} className="bore-shape" />
 
               {boreSvg.holesOnBore.map((hole) => {
-                const x = boreSvg.zToSvg(Math.max(hole.zMm, 0));
-                const localRadius = boreSvg.rToSvg(hole.diameterMm * 0.5);
                 return (
                   <g key={hole.id}>
                     <line
-                      x1={x}
-                      y1={boreSvg.centerY - localRadius - 4}
-                      x2={x}
-                      y2={boreSvg.centerY - localRadius - 24}
+                      x1={hole.x}
+                      y1={boreSvg.centerY - hole.localRadius - 4}
+                      x2={hole.x}
+                      y2={hole.dotY + 4}
                       className="hole-stem"
                     />
                     <circle
-                      cx={x}
-                      cy={boreSvg.centerY - localRadius - 28}
+                      cx={hole.x}
+                      cy={hole.dotY}
                       r="5"
                       className="hole-dot"
                     />
-                    <text x={x} y={boreSvg.centerY - localRadius - 36} className="hole-label">
+                    <line
+                      x1={hole.x}
+                      y1={hole.dotY - 5}
+                      x2={hole.x}
+                      y2={hole.labelY + 4}
+                      className="hole-label-leader"
+                    />
+                    <rect
+                      x={hole.x - hole.labelWidth / 2}
+                      y={hole.labelY - 11}
+                      width={hole.labelWidth}
+                      height="16"
+                      rx="4"
+                      className="hole-label-box"
+                    />
+                    <text x={hole.x} y={hole.labelY} className="hole-label">
                       {hole.label}
                     </text>
                   </g>
