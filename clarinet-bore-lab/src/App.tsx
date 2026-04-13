@@ -1,8 +1,10 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BoreSegment,
   Fingering,
   ToneHole,
+  midiToName,
+  parseScientificPitch,
   sampleBoreProfile,
   evaluateFingerings,
   evaluateToneHoles,
@@ -23,273 +25,47 @@ type MouthpiecePreset = {
   sourceUrl: string;
 };
 
-type CsvImportDiameterMode = "avg" | "min" | "max";
-
-type ImportSegmentDraft = {
-  label: string;
-  lengthMm: number;
-  startDiameterMm: number;
-  endDiameterMm: number;
-};
-
-type ImportHoleDraft = {
-  label: string;
-  positionMm: number;
-  diameterMm: number;
-  chimneyMm: number;
-};
-
-type CsvImportPreview = {
-  instrument: string;
-  catalogNumber: string;
-  segments: ImportSegmentDraft[];
-  holes: ImportHoleDraft[];
-  warnings: string[];
-};
-
-type SectionPoint = { xMm: number; diameterMm: number };
-type SectionHole = { label: string; xMm: number; diameterMm: number };
-
-function splitCsvLine(line: string): string[] {
-  return line.split(",").map((cell) => cell.trim());
-}
-
-function parseFlexibleNumber(raw: string): number | null {
-  const normalized = raw.replace(/[^0-9.+-]/g, "").replace(/-+$/, "");
-  if (normalized.length === 0 || normalized === "." || normalized === "-" || normalized === "+") {
-    return null;
-  }
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function pickInsideDiameter(
-  minValue: number | null,
-  maxValue: number | null,
-  mode: CsvImportDiameterMode
-): number | null {
-  if (mode === "min") {
-    return minValue ?? maxValue;
-  }
-  if (mode === "max") {
-    return maxValue ?? minValue;
-  }
-  if (minValue !== null && maxValue !== null) {
-    return (minValue + maxValue) * 0.5;
-  }
-  return minValue ?? maxValue;
-}
-
-function extractHoleDiameterMm(text: string): number | null {
-  const diameterMatch = text.match(/diameter\s*([0-9]+(?:\.[0-9]+)?)\s*mm/i);
-  if (diameterMatch) {
-    return Number(diameterMatch[1]);
-  }
-  const parentheticalMatch = text.match(/\(([0-9]+(?:\.[0-9]+)?)\s*mm\)/i);
-  if (parentheticalMatch) {
-    return Number(parentheticalMatch[1]);
-  }
-  return null;
-}
-
-function normalizeHoleLabel(text: string): string {
-  return text
-    .replace(/center of\s*/i, "")
-    .replace(/\s*\([^)]*\)\s*/g, "")
-    .replace(/\s*diameter\s*[0-9.]+\s*mm\s*/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseDennerStyleCsv(
-  csvText: string,
-  diameterMode: CsvImportDiameterMode,
-  defaultChimneyMm: number
-): CsvImportPreview {
-  const lines = csvText.split(/\r?\n/);
-  const warnings: string[] = [];
-
-  const sections: Array<{
-    name: string;
-    points: SectionPoint[];
-    holes: SectionHole[];
-    maxLengthMm: number;
-  }> = [];
-
-  let instrument = "Imported Instrument";
-  let catalogNumber = "";
-  let currentSection: {
-    name: string;
-    points: SectionPoint[];
-    holes: SectionHole[];
-    maxLengthMm: number;
-  } | null = null;
-
-  function closeSection(): void {
-    if (currentSection) {
-      sections.push(currentSection);
-    }
-    currentSection = null;
-  }
-
-  for (const line of lines) {
-    if (line.trim().length === 0) {
-      continue;
-    }
-    const cols = splitCsvLine(line);
-    const first = cols[0] ?? "";
-
-    if (first.startsWith("Instrument:")) {
-      instrument = cols.slice(0, 3).join(" ").replace(/\s+/g, " ").trim();
-      continue;
-    }
-    if (first.startsWith("Cat. No.:")) {
-      catalogNumber = cols.slice(0, 2).join(" ").replace(/\s+/g, " ").trim();
-      continue;
-    }
-
-    if (/^PART:/i.test(first)) {
-      closeSection();
-      const name = first
-        .replace(/^PART:\s*/i, "")
-        .replace(/\s*\(Page[^)]*\)\s*/i, "")
-        .trim();
-      currentSection = {
-        name,
-        points: [],
-        holes: [],
-        maxLengthMm: 0,
-      };
-      continue;
-    }
-
-    if (!currentSection || /^Length\s*\(mm\)/i.test(first)) {
-      continue;
-    }
-
-    const rowLengthMm = parseFlexibleNumber(first);
-    if (rowLengthMm !== null) {
-      currentSection.maxLengthMm = Math.max(currentSection.maxLengthMm, rowLengthMm);
-    }
-
-    const insideMin = parseFlexibleNumber(cols[1] ?? "");
-    const insideMax = parseFlexibleNumber(cols[2] ?? "");
-    const chosenInside = pickInsideDiameter(insideMin, insideMax, diameterMode);
-
-    if (rowLengthMm !== null && chosenInside !== null) {
-      currentSection.points.push({ xMm: rowLengthMm, diameterMm: chosenInside });
-    }
-
-    const remarkText = [first, cols[7] ?? ""].join(" ").trim();
-    if (/center of .*hole/i.test(remarkText)) {
-      if (rowLengthMm === null) {
-        warnings.push(
-          `${currentSection.name}: could not place hole row \"${first}\" because no numeric length was provided.`
-        );
-        continue;
-      }
-
-      const parsedHoleDiameter = extractHoleDiameterMm([first, cols[7] ?? ""].join(" "));
-      const label = normalizeHoleLabel(remarkText) || `Hole @ ${rowLengthMm.toFixed(1)} mm`;
-      currentSection.holes.push({
-        label,
-        xMm: rowLengthMm,
-        diameterMm: parsedHoleDiameter ?? 7,
-      });
-    }
-  }
-
-  closeSection();
-
-  const segments: ImportSegmentDraft[] = [];
-  const holes: ImportHoleDraft[] = [];
-  let runningOffsetMm = 0;
-
-  for (const section of sections) {
-    const dedupedPointMap = new Map<number, number>();
-    for (const point of section.points) {
-      dedupedPointMap.set(point.xMm, point.diameterMm);
-    }
-    const sortedPoints = [...dedupedPointMap.entries()]
-      .map(([xMm, diameterMm]) => ({ xMm, diameterMm }))
-      .sort((a, b) => a.xMm - b.xMm);
-
-    if (sortedPoints.length < 2) {
-      warnings.push(`${section.name}: not enough valid inside-diameter points to build segments.`);
-    }
-
-    for (let i = 1; i < sortedPoints.length; i += 1) {
-      const prev = sortedPoints[i - 1];
-      const curr = sortedPoints[i];
-      const lengthMm = curr.xMm - prev.xMm;
-      if (lengthMm <= 0.01) {
-        continue;
-      }
-      segments.push({
-        label: `${section.name} ${i}`,
-        lengthMm,
-        startDiameterMm: prev.diameterMm,
-        endDiameterMm: curr.diameterMm,
-      });
-    }
-
-    for (const hole of section.holes) {
-      holes.push({
-        label: hole.label,
-        positionMm: runningOffsetMm + hole.xMm,
-        diameterMm: hole.diameterMm,
-        chimneyMm: defaultChimneyMm,
-      });
-    }
-
-    const sectionLength =
-      section.maxLengthMm > 0
-        ? section.maxLengthMm
-        : sortedPoints.length > 0
-          ? sortedPoints[sortedPoints.length - 1].xMm
-          : 0;
-
-    runningOffsetMm += sectionLength;
-  }
-
-  if (segments.length === 0) {
-    warnings.push("No bore segments were generated from this file.");
-  }
-
-  return {
-    instrument,
-    catalogNumber,
-    segments,
-    holes,
-    warnings,
-  };
-}
-
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function buildNoteOptions(minOctave: number, maxOctave: number): string[] {
+  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const out: string[] = [];
+  for (let octave = minOctave; octave <= maxOctave; octave += 1) {
+    for (const name of names) {
+      out.push(`${name}${octave}`);
+    }
+  }
+  return out;
+}
+
+const noteOptions = buildNoteOptions(2, 6);
+
 const initialSegments: BoreSegment[] = [
   {
     id: makeId("seg"),
-    label: "Upper joint",
-    lengthMm: 240,
-    startDiameterMm: 14.6,
-    endDiameterMm: 14.4,
-  },
-  {
-    id: makeId("seg"),
-    label: "Middle joint",
-    lengthMm: 220,
-    startDiameterMm: 14.4,
-    endDiameterMm: 14.8,
+    label: "Bell",
+    zMm: 0,
+    diameterMm: 15.2,
   },
   {
     id: makeId("seg"),
     label: "Lower joint",
-    lengthMm: 180,
-    startDiameterMm: 14.8,
-    endDiameterMm: 15.2,
+    zMm: 180,
+    diameterMm: 14.8,
+  },
+  {
+    id: makeId("seg"),
+    label: "Middle joint",
+    zMm: 400,
+    diameterMm: 14.4,
+  },
+  {
+    id: makeId("seg"),
+    label: "Upper joint",
+    zMm: 640,
+    diameterMm: 14.6,
   },
 ];
 
@@ -443,6 +219,50 @@ const mouthpiecePresets: MouthpiecePreset[] = [
   },
 ];
 
+const LEGACY_SAVE_STORAGE_KEY = "clarinet-bore-lab.design.v1";
+const MODEL_LIBRARY_STORAGE_KEY = "clarinet-bore-lab.model-library.v1";
+const LAST_OPENED_MODEL_ID_KEY = "clarinet-bore-lab.last-opened-model-id.v1";
+
+type DesignSnapshot = {
+  version: 1;
+  name: string;
+  tempC: number;
+  pitchStandardHz: number;
+  toleranceCents: number;
+  firstChalumeauNote: string;
+  selectedMouthpieceId: string;
+  segments: BoreSegment[];
+  holes: ToneHole[];
+  fingerings: Fingering[];
+};
+
+type SavedModelRecord = {
+  id: string;
+  name: string;
+  savedAtIso: string;
+  snapshot: DesignSnapshot;
+};
+
+function loadModelLibraryFromStorage(): SavedModelRecord[] {
+  try {
+    const raw = localStorage.getItem(MODEL_LIBRARY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as SavedModelRecord[];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((entry) => entry?.snapshot?.version === 1);
+  } catch {
+    return [];
+  }
+}
+
+function persistModelLibrary(models: SavedModelRecord[]): void {
+  localStorage.setItem(MODEL_LIBRARY_STORAGE_KEY, JSON.stringify(models));
+}
+
 export default function App() {
   const [name, setName] = useState("Prototype Clarinet Bore");
   const [tempC, setTempC] = useState(20);
@@ -451,26 +271,27 @@ export default function App() {
   const [holes, setHoles] = useState<ToneHole[]>(initialHoles);
   const [toleranceCents, setToleranceCents] = useState(10);
   const [fingerings, setFingerings] = useState<Fingering[]>(initialFingerings);
+  const [firstChalumeauNote, setFirstChalumeauNote] = useState("D3");
   const [selectedMouthpieceId, setSelectedMouthpieceId] = useState(mouthpiecePresets[1].id);
   const [activeMouthpiece, setActiveMouthpiece] = useState<MouthpiecePreset>(
     mouthpiecePresets[1]
   );
-  const [importDiameterMode, setImportDiameterMode] = useState<CsvImportDiameterMode>("avg");
-  const [importDefaultChimneyMm, setImportDefaultChimneyMm] = useState(3);
-  const [importFileName, setImportFileName] = useState("");
-  const [importPreview, setImportPreview] = useState<CsvImportPreview | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [savedModels, setSavedModels] = useState<SavedModelRecord[]>(() =>
+    loadModelLibraryFromStorage()
+  );
+  const [selectedSavedModelId, setSelectedSavedModelId] = useState<string>("");
 
   const acousticSegments = useMemo<BoreSegment[]>(() => {
-    const firstBore = segments[0]?.startDiameterMm ?? activeMouthpiece.shankBoreMm;
+    const baseLength = totalBoreLengthMm(segments);
     return [
-      {
-        id: "mouthpiece-segment",
-        label: "Mouthpiece",
-        lengthMm: activeMouthpiece.acousticInsertMm,
-        startDiameterMm: activeMouthpiece.shankBoreMm,
-        endDiameterMm: firstBore,
-      },
       ...segments,
+      {
+        id: "mouthpiece-point",
+        label: "Mouthpiece",
+        zMm: baseLength + activeMouthpiece.acousticInsertMm,
+        diameterMm: activeMouthpiece.shankBoreMm,
+      },
     ];
   }, [activeMouthpiece.acousticInsertMm, activeMouthpiece.shankBoreMm, segments]);
 
@@ -533,25 +354,27 @@ export default function App() {
       Math.max(...profilePoints.map((point) => point.diameterMm * 0.5), 8) * 1.15;
     const usableHalfHeight = 108;
 
-    const xToSvg = (xMm: number): number => {
+    const zToSvg = (zMm: number): number => {
       if (totalLengthMm <= 0) {
         return marginX;
       }
-      return marginX + (xMm / totalLengthMm) * (width - marginX * 2);
+      return marginX + (zMm / totalLengthMm) * (width - marginX * 2);
     };
 
     const rToSvg = (radiusMm: number): number =>
       (Math.max(radiusMm, 0) / maxRadius) * usableHalfHeight;
 
     const top = profilePoints.map((point) => {
-      const x = xToSvg(point.xMm);
+      const zMm = Math.max(totalLengthMm - point.xMm, 0);
+      const x = zToSvg(zMm);
       const y = centerY - rToSvg(point.diameterMm * 0.5);
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
     const bottom = [...profilePoints]
       .reverse()
       .map((point) => {
-        const x = xToSvg(point.xMm);
+        const zMm = Math.max(totalLengthMm - point.xMm, 0);
+        const x = zToSvg(zMm);
         const y = centerY + rToSvg(point.diameterMm * 0.5);
         return `${x.toFixed(2)},${y.toFixed(2)}`;
       });
@@ -565,10 +388,71 @@ export default function App() {
       centerY,
       polygon,
       holesOnBore,
-      xToSvg,
+      zToSvg,
       rToSvg,
     };
   }, [offsetHoles, profilePoints, totalLengthMm]);
+
+  function applySnapshot(saved: DesignSnapshot): void {
+    setName(saved.name);
+    setTempC(saved.tempC);
+    setPitchStandardHz(saved.pitchStandardHz);
+    setToleranceCents(saved.toleranceCents);
+    setFirstChalumeauNote(saved.firstChalumeauNote);
+    setSegments(saved.segments);
+    setHoles(saved.holes);
+    setFingerings(saved.fingerings);
+
+    const preset = mouthpiecePresets.find((candidate) => candidate.id === saved.selectedMouthpieceId);
+    if (preset) {
+      setSelectedMouthpieceId(preset.id);
+      setActiveMouthpiece(preset);
+    }
+  }
+
+  useEffect(() => {
+    if (savedModels.length > 0) {
+      const lastOpenedModelId = localStorage.getItem(LAST_OPENED_MODEL_ID_KEY);
+      const preferred =
+        (lastOpenedModelId
+          ? savedModels.find((entry) => entry.id === lastOpenedModelId)
+          : null) ?? savedModels[0];
+
+      setSelectedSavedModelId(preferred.id);
+      applySnapshot(preferred.snapshot);
+      return;
+    }
+
+    // Legacy compatibility: if no model library exists, load old single-save snapshot.
+    const raw = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    try {
+      const saved = JSON.parse(raw) as DesignSnapshot;
+      if (saved.version !== 1) {
+        return;
+      }
+      applySnapshot(saved);
+    } catch {
+      // Ignore invalid saved content and keep current defaults.
+    }
+  }, []);
+
+  function buildCurrentSnapshot(): DesignSnapshot {
+    return {
+      version: 1,
+      name,
+      tempC,
+      pitchStandardHz,
+      toleranceCents,
+      firstChalumeauNote,
+      selectedMouthpieceId,
+      segments,
+      holes,
+      fingerings,
+    };
+  }
 
   function applyMouthpiecePreset(presetId: string): void {
     const preset = mouthpiecePresets.find((candidate) => candidate.id === presetId);
@@ -578,61 +462,75 @@ export default function App() {
     setActiveMouthpiece(preset);
   }
 
-  async function handleCsvFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const text = await file.text();
-    const preview = parseDennerStyleCsv(text, importDiameterMode, importDefaultChimneyMm);
-    setImportFileName(file.name);
-    setImportPreview(preview);
+  function saveAsNewModel(): void {
+    const snapshot = buildCurrentSnapshot();
+    const modelId = makeId("model");
+    const savedAtIso = new Date().toISOString();
+    const record: SavedModelRecord = {
+      id: modelId,
+      name: snapshot.name || "Untitled model",
+      savedAtIso,
+      snapshot,
+    };
+    const updated = [record, ...savedModels];
+    setSavedModels(updated);
+    setSelectedSavedModelId(modelId);
+    localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, modelId);
+    persistModelLibrary(updated);
+    setLastSavedAt(new Date(savedAtIso).toLocaleTimeString());
   }
 
-  function applyImportedData(mode: "replace" | "append"): void {
-    if (!importPreview) {
+  function updateSelectedModel(): void {
+    if (!selectedSavedModelId) {
+      saveAsNewModel();
       return;
     }
+    const snapshot = buildCurrentSnapshot();
+    const savedAtIso = new Date().toISOString();
+    const updated = savedModels.map((model) =>
+      model.id === selectedSavedModelId
+        ? {
+            ...model,
+            name: snapshot.name || model.name,
+            savedAtIso,
+            snapshot,
+          }
+        : model
+    );
+    setSavedModels(updated);
+    persistModelLibrary(updated);
+    setLastSavedAt(new Date(savedAtIso).toLocaleTimeString());
+  }
 
-    const importedSegments: BoreSegment[] = importPreview.segments.map((segment) => ({
-      id: makeId("seg"),
-      label: segment.label,
-      lengthMm: segment.lengthMm,
-      startDiameterMm: segment.startDiameterMm,
-      endDiameterMm: segment.endDiameterMm,
-    }));
-
-    const importedHoles: ToneHole[] = importPreview.holes.map((hole) => ({
-      id: makeId("hole"),
-      label: hole.label,
-      positionMm: hole.positionMm,
-      diameterMm: hole.diameterMm,
-      chimneyMm: hole.chimneyMm,
-      targetNote: "",
-    }));
-
-    if (mode === "replace") {
-      if (importedSegments.length > 0) {
-        setSegments(importedSegments);
-      }
-      setHoles(importedHoles);
-      setFingerings([]);
-      if (importPreview.instrument) {
-        setName(importPreview.instrument);
-      }
+  function openSelectedModel(): void {
+    const model = savedModels.find((entry) => entry.id === selectedSavedModelId);
+    if (!model) {
       return;
     }
+    applySnapshot(model.snapshot);
+    localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, model.id);
+  }
 
-    if (importedSegments.length > 0) {
-      setSegments((prev) => [...prev, ...importedSegments]);
+  function deleteSelectedModel(): void {
+    if (!selectedSavedModelId) {
+      return;
     }
-    setHoles((prev) => [...prev, ...importedHoles]);
+    const updated = savedModels.filter((entry) => entry.id !== selectedSavedModelId);
+    setSavedModels(updated);
+    persistModelLibrary(updated);
+
+    if (updated.length > 0) {
+      setSelectedSavedModelId(updated[0].id);
+      localStorage.setItem(LAST_OPENED_MODEL_ID_KEY, updated[0].id);
+    } else {
+      setSelectedSavedModelId("");
+      localStorage.removeItem(LAST_OPENED_MODEL_ID_KEY);
+    }
   }
 
   function updateSegment(
     id: string,
-    key: "lengthMm" | "startDiameterMm" | "endDiameterMm",
+    key: "zMm" | "diameterMm",
     value: number
   ): void {
     setSegments((prev) =>
@@ -666,6 +564,51 @@ export default function App() {
     setFingerings((prev) =>
       prev.map((f) => (f.id === id ? { ...f, [key]: value as never } : f))
     );
+  }
+
+  function autoPopulateIntonationTargets(): void {
+    const firstMidi = parseScientificPitch(firstChalumeauNote);
+    if (firstMidi === null) {
+      return;
+    }
+
+    const orderedHoles = [...holes].sort((a, b) => b.positionMm - a.positionMm);
+    const updatedTargets = new Map<string, string>();
+    const generatedFingerings: Fingering[] = [];
+
+    for (let i = 0; i < orderedHoles.length; i += 1) {
+      const hole = orderedHoles[i];
+      const chalumeauMidi = firstMidi + i;
+      const clarionMidi = chalumeauMidi + 19;
+      const chalumeauNote = midiToName(chalumeauMidi);
+      const clarionNote = midiToName(clarionMidi);
+
+      updatedTargets.set(hole.id, chalumeauNote);
+
+      generatedFingerings.push({
+        id: makeId("fing"),
+        label: `Chalumeau ${chalumeauNote}`,
+        targetNote: chalumeauNote,
+        ventHoleId: hole.id,
+        register: "fundamental",
+      });
+
+      generatedFingerings.push({
+        id: makeId("fing"),
+        label: `Clarion ${clarionNote}`,
+        targetNote: clarionNote,
+        ventHoleId: hole.id,
+        register: "third",
+      });
+    }
+
+    setHoles((prev) =>
+      prev.map((hole) => {
+        const target = updatedTargets.get(hole.id);
+        return target ? { ...hole, targetNote: target } : hole;
+      })
+    );
+    setFingerings(generatedFingerings);
   }
 
   return (
@@ -728,66 +671,45 @@ export default function App() {
             </select>
           </label>
 
-            <label>
-              Data sheet import mode
-              <select
-                value={importDiameterMode}
-                onChange={(e) => setImportDiameterMode(e.target.value as CsvImportDiameterMode)}
-              >
-                <option value="avg">Inside diameter = average(min, max)</option>
-                <option value="min">Inside diameter = min</option>
-                <option value="max">Inside diameter = max</option>
-              </select>
-            </label>
-
-            <label>
-              Imported hole chimney default (mm)
-              <input
-                type="number"
-                value={importDefaultChimneyMm}
-                onChange={(e) => setImportDefaultChimneyMm(Number(e.target.value))}
-              />
-            </label>
-
-            <label>
-              Import Denner-style CSV
-              <input type="file" accept=".csv,text/csv" onChange={handleCsvFileChange} />
-            </label>
-
-            {importPreview && (
-              <div>
-                <p className="math">
-                  Imported {importFileName}: {importPreview.segments.length} segments, {" "}
-                  {importPreview.holes.length} holes.
-                </p>
-                <p className="math">
-                  Source: {importPreview.instrument}
-                  {importPreview.catalogNumber ? ` | ${importPreview.catalogNumber}` : ""}
-                </p>
-                {importPreview.warnings.length > 0 && (
-                  <div className="warnings">
-                    <h3>Import warnings ({importPreview.warnings.length})</h3>
-                    <ul>
-                      {importPreview.warnings.slice(0, 6).map((warning) => (
-                        <li key={warning}>{warning}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="badge-row">
-                  <button type="button" onClick={() => applyImportedData("replace")}>
-                    Replace with imported data
-                  </button>
-                  <button type="button" onClick={() => applyImportedData("append")}>
-                    Append imported data
-                  </button>
-                </div>
-              </div>
-            )}
-
           <button type="button" onClick={() => applyMouthpiecePreset(selectedMouthpieceId)}>
             Apply mouthpiece preset
           </button>
+          <label>
+            Saved bore models
+            <select
+              value={selectedSavedModelId}
+              onChange={(e) => setSelectedSavedModelId(e.target.value)}
+            >
+              <option value="">(no saved models)</option>
+              {savedModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name} - {new Date(model.savedAtIso).toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="badge-row">
+            <button type="button" onClick={openSelectedModel} disabled={!selectedSavedModelId}>
+              Open selected
+            </button>
+            <button type="button" onClick={saveAsNewModel}>Save as new model</button>
+            <button
+              type="button"
+              onClick={updateSelectedModel}
+              disabled={!selectedSavedModelId}
+            >
+              Update selected
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={deleteSelectedModel}
+              disabled={!selectedSavedModelId}
+            >
+              Delete selected
+            </button>
+            {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
+          </div>
           <p className="math">
             Active: {activeMouthpiece.label} ({activeMouthpiece.instrument}), tip opening{" "}
             {activeMouthpiece.openingMm.toFixed(3)} mm ({activeMouthpiece.openingHundredthMm} x
@@ -810,7 +732,7 @@ export default function App() {
       <main className="grid">
         <section className="panel">
           <div className="panel-head">
-            <h2>Bore Profile Segments</h2>
+            <h2>Bore Profile Points (z from bell)</h2>
             <button
               type="button"
               onClick={() =>
@@ -818,25 +740,26 @@ export default function App() {
                   ...prev,
                   {
                     id: makeId("seg"),
-                    label: `Segment ${prev.length + 1}`,
-                    lengthMm: 120,
-                    startDiameterMm: 14.8,
-                    endDiameterMm: 15,
+                    label: `Point ${prev.length + 1}`,
+                    zMm: Math.max(...prev.map((segment) => segment.zMm), 0) + 40,
+                    diameterMm: 14.8,
                   },
                 ])
               }
             >
-              Add segment
+              Add point
             </button>
           </div>
+          <p className="math">
+            z convention: 0 mm is the point farthest from the mouthpiece (bell end).
+          </p>
 
           <table>
             <thead>
               <tr>
-                <th>Segment</th>
-                <th>Length (mm)</th>
-                <th>Start dia (mm)</th>
-                <th>End dia (mm)</th>
+                <th>Part label</th>
+                <th>z (mm)</th>
+                <th>Diameter (mm)</th>
                 <th></th>
               </tr>
             </thead>
@@ -846,34 +769,25 @@ export default function App() {
                   <td>
                     <input
                       value={segment.label}
-                      placeholder={`S${index + 1}`}
+                      placeholder={`P${index + 1}`}
                       onChange={(e) => updateSegmentLabel(segment.id, e.target.value)}
                     />
                   </td>
                   <td>
                     <input
                       type="number"
-                      value={segment.lengthMm}
+                      value={segment.zMm}
                       onChange={(e) =>
-                        updateSegment(segment.id, "lengthMm", Number(e.target.value))
+                        updateSegment(segment.id, "zMm", Number(e.target.value))
                       }
                     />
                   </td>
                   <td>
                     <input
                       type="number"
-                      value={segment.startDiameterMm}
+                      value={segment.diameterMm}
                       onChange={(e) =>
-                        updateSegment(segment.id, "startDiameterMm", Number(e.target.value))
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={segment.endDiameterMm}
-                      onChange={(e) =>
-                        updateSegment(segment.id, "endDiameterMm", Number(e.target.value))
+                        updateSegment(segment.id, "diameterMm", Number(e.target.value))
                       }
                     />
                   </td>
@@ -990,7 +904,7 @@ export default function App() {
           </div>
           <p className="math">
             Profile view of the modeled air column. Tone-hole markers are positioned by distance
-            from mouthpiece.
+            in z-space from bell end.
           </p>
 
           <div className="bore-figure-wrap">
@@ -1014,7 +928,8 @@ export default function App() {
               <polygon points={boreSvg.polygon} className="bore-shape" />
 
               {boreSvg.holesOnBore.map((hole) => {
-                const x = boreSvg.xToSvg(hole.positionMm);
+                const zMm = Math.max(totalLengthMm - hole.positionMm, 0);
+                const x = boreSvg.zToSvg(zMm);
                 const localRadius = boreSvg.rToSvg(hole.diameterMm * 0.5);
                 return (
                   <g key={hole.id}>
@@ -1039,10 +954,10 @@ export default function App() {
               })}
 
               <text x="24" y={boreSvg.height - 10} className="axis-label">
-                0 mm (reed tip)
+                0 mm (bell end)
               </text>
               <text x={boreSvg.width - 24} y={boreSvg.height - 10} className="axis-label axis-right">
-                {totalLengthMm.toFixed(1)} mm (bell end)
+                {totalLengthMm.toFixed(1)} mm (mouthpiece side)
               </text>
             </svg>
           </div>
@@ -1137,6 +1052,22 @@ export default function App() {
                 onChange={(e) => setToleranceCents(Number(e.target.value))}
               />
             </label>
+            <label>
+              First chalumeau note
+              <select
+                value={firstChalumeauNote}
+                onChange={(e) => setFirstChalumeauNote(e.target.value)}
+              >
+                {noteOptions.map((note) => (
+                  <option key={note} value={note}>
+                    {note}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={autoPopulateIntonationTargets}>
+              Auto populate intonation
+            </button>
             <div className="badge-row">
               <span className="badge good">
                 Pass rate: {passCount}/{fingeringResults.length}

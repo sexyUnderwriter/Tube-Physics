@@ -1,9 +1,8 @@
 export type BoreSegment = {
   id: string;
   label: string;
-  lengthMm: number;
-  startDiameterMm: number;
-  endDiameterMm: number;
+  zMm: number;
+  diameterMm: number;
 };
 
 export type ToneHole = {
@@ -74,26 +73,42 @@ export function speedOfSoundMs(tempC: number): number {
 }
 
 export function totalBoreLengthMm(segments: BoreSegment[]): number {
-  return segments.reduce((sum, s) => sum + Math.max(s.lengthMm, 0), 0);
+  if (segments.length === 0) {
+    return 0;
+  }
+  return Math.max(...segments.map((segment) => Math.max(segment.zMm, 0)));
 }
 
 export function diameterAtMm(segments: BoreSegment[], xMm: number): number {
-  const total = totalBoreLengthMm(segments);
-  const x = clamp(xMm, 0, total);
-
-  let cursor = 0;
-  for (const segment of segments) {
-    const segLength = Math.max(segment.lengthMm, 0.001);
-    const end = cursor + segLength;
-    if (x <= end) {
-      const t = (x - cursor) / segLength;
-      return segment.startDiameterMm + t * (segment.endDiameterMm - segment.startDiameterMm);
-    }
-    cursor = end;
+  if (segments.length === 0) {
+    return 14;
   }
 
-  const last = segments[segments.length - 1];
-  return last ? last.endDiameterMm : 14;
+  const points = [...segments].sort((a, b) => a.zMm - b.zMm);
+  const total = totalBoreLengthMm(points);
+
+  // x increases from mouthpiece to bell, while z=0 is bell end.
+  const x = clamp(xMm, 0, total);
+  const z = total - x;
+
+  if (z <= points[0].zMm) {
+    return points[0].diameterMm;
+  }
+  if (z >= points[points.length - 1].zMm) {
+    return points[points.length - 1].diameterMm;
+  }
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (z <= b.zMm) {
+      const dz = Math.max(b.zMm - a.zMm, 0.001);
+      const t = (z - a.zMm) / dz;
+      return a.diameterMm + t * (b.diameterMm - a.diameterMm);
+    }
+  }
+
+  return points[points.length - 1].diameterMm;
 }
 
 function frequencyFromQuarterWave(lengthMm: number, cMs: number): number {
@@ -114,14 +129,14 @@ function midiToHz(midi: number, a4Hz: number): number {
   return a4Hz * Math.pow(2, (midi - 69) / 12);
 }
 
-function midiToName(midi: number): string {
+export function midiToName(midi: number): string {
   const rounded = Math.round(midi);
   const note = NOTE_NAMES[((rounded % 12) + 12) % 12];
   const octave = Math.floor(rounded / 12) - 1;
   return `${note}${octave}`;
 }
 
-function parseScientificPitch(note: string): number | null {
+export function parseScientificPitch(note: string): number | null {
   const trimmed = note.trim().toUpperCase();
   const match = trimmed.match(/^([A-G])(#|B)?(-?\d)$/);
   if (!match) {
