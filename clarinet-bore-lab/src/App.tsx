@@ -3,6 +3,7 @@ import {
   BoreSegment,
   Fingering,
   ToneHole,
+  diameterAtMm,
   midiToName,
   parseScientificPitch,
   sampleBoreProfile,
@@ -88,6 +89,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Vent",
     zMm: 490,
+    angleDeg: 0,
     diameterMm: 2.2,
     chimneyMm: 2.8,
     targetNote: "B4",
@@ -96,6 +98,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Thumb",
     zMm: 430,
+    angleDeg: 0,
     diameterMm: 8.2,
     chimneyMm: 3.1,
     targetNote: "G4",
@@ -104,6 +107,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Front A",
     zMm: 444,
+    angleDeg: 0,
     diameterMm: 4.0,
     chimneyMm: 2.3,
     targetNote: "A4",
@@ -112,6 +116,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 1",
     zMm: 404,
+    angleDeg: 0,
     diameterMm: 7.8,
     chimneyMm: 3.0,
     targetNote: "A4",
@@ -120,6 +125,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 2",
     zMm: 376,
+    angleDeg: 0,
     diameterMm: 8.0,
     chimneyMm: 3.0,
     targetNote: "G#4",
@@ -128,6 +134,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 3",
     zMm: 348,
+    angleDeg: 0,
     diameterMm: 8.1,
     chimneyMm: 3.0,
     targetNote: "G4",
@@ -136,6 +143,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 4",
     zMm: 316,
+    angleDeg: 0,
     diameterMm: 8.3,
     chimneyMm: 3.0,
     targetNote: "F#4",
@@ -144,6 +152,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 5",
     zMm: 282,
+    angleDeg: 0,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "F4",
@@ -152,6 +161,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 6",
     zMm: 246,
+    angleDeg: 0,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "E4",
@@ -160,6 +170,7 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 7",
     zMm: 208,
+    angleDeg: 0,
     diameterMm: 8.5,
     chimneyMm: 3.0,
     targetNote: "D4",
@@ -173,6 +184,7 @@ const initialFingerings: Fingering[] = [
     targetNote: "D4",
     ventHoleId: initialHoles[9].id,
     register: "fundamental",
+    termination: "vent-hole",
   },
   {
     id: makeId("fing"),
@@ -180,6 +192,7 @@ const initialFingerings: Fingering[] = [
     targetNote: "E4",
     ventHoleId: initialHoles[8].id,
     register: "fundamental",
+    termination: "vent-hole",
   },
   {
     id: makeId("fing"),
@@ -187,6 +200,7 @@ const initialFingerings: Fingering[] = [
     targetNote: "F4",
     ventHoleId: initialHoles[7].id,
     register: "fundamental",
+    termination: "vent-hole",
   },
   {
     id: makeId("fing"),
@@ -194,6 +208,7 @@ const initialFingerings: Fingering[] = [
     targetNote: "B4",
     ventHoleId: initialHoles[0].id,
     register: "third",
+    termination: "vent-hole",
   },
 ];
 
@@ -377,6 +392,13 @@ function inchesToMm(valueInches: number): number {
   return valueInches * 25.4;
 }
 
+function normalizeHoleAngleDeg(angleDeg: number): number {
+  if (!Number.isFinite(angleDeg)) {
+    return 0;
+  }
+  return ((angleDeg + 180) % 360 + 360) % 360 - 180;
+}
+
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
 type DesignSnapshot = {
@@ -393,9 +415,16 @@ type DesignSnapshot = {
   fingerings: Fingering[];
 };
 
-type LegacyToneHole = Omit<ToneHole, "zMm"> & { positionMm: number };
-type SnapshotV1 = Omit<DesignSnapshot, "holes" | "mouthpiece"> & {
+type LegacyToneHole = Omit<ToneHole, "zMm" | "angleDeg"> & {
+  positionMm: number;
+  angleDeg?: number;
+};
+type LegacyFingering = Omit<Fingering, "termination"> & {
+  termination?: "vent-hole" | "bell";
+};
+type SnapshotV1 = Omit<DesignSnapshot, "holes" | "mouthpiece" | "fingerings"> & {
   holes: Array<ToneHole | LegacyToneHole>;
+  fingerings: Array<Fingering | LegacyFingering>;
   mouthpiece?: Partial<MouthpieceGeometry>;
 };
 
@@ -423,11 +452,17 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
     );
 
     const normalizedHoles: ToneHole[] = parsed.holes.map((hole) => {
+      const angleDeg =
+        "angleDeg" in hole && typeof hole.angleDeg === "number" && Number.isFinite(hole.angleDeg)
+          ? normalizeHoleAngleDeg(hole.angleDeg)
+          : 0;
+
       if ("zMm" in hole && Number.isFinite(hole.zMm)) {
         return {
           id: hole.id,
           label: hole.label,
           zMm: hole.zMm,
+          angleDeg,
           diameterMm: hole.diameterMm,
           chimneyMm: hole.chimneyMm,
           targetNote: hole.targetNote,
@@ -438,6 +473,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
           id: hole.id,
           label: hole.label,
           zMm: Math.max(baseLengthMm - hole.positionMm, 0),
+          angleDeg,
           diameterMm: hole.diameterMm,
           chimneyMm: hole.chimneyMm,
           targetNote: hole.targetNote,
@@ -447,9 +483,22 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
         id: hole.id,
         label: hole.label,
         zMm: 0,
+        angleDeg,
         diameterMm: hole.diameterMm,
         chimneyMm: hole.chimneyMm,
         targetNote: hole.targetNote,
+      };
+    });
+
+    const normalizedFingerings: Fingering[] = parsed.fingerings.map((fingering) => {
+      const inferredTermination =
+        typeof fingering.label === "string" && /all\s*closed/i.test(fingering.label)
+          ? "bell"
+          : "vent-hole";
+
+      return {
+        ...fingering,
+        termination: fingering.termination ?? inferredTermination,
       };
     });
 
@@ -476,6 +525,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
       selectedMouthpieceId: preset.id,
       mouthpiece,
       holes: normalizedHoles,
+      fingerings: normalizedFingerings,
     };
   } catch {
     return null;
@@ -582,7 +632,7 @@ export default function App() {
   );
   const boreSvg = useMemo(() => {
     const width = 980;
-    const height = 300;
+    const height = 330;
     const marginX = 24;
     const centerY = height / 2;
     const maxRadius =
@@ -646,16 +696,71 @@ export default function App() {
         };
       });
 
+    // Segment boundary lines – one vertical line per segment at its z position.
+    // We clip the line to the bore profile radius at that z so it spans exactly
+    // from the top wall to the bottom wall.
+    const segmentLines = acousticSegments.map((seg) => {
+      const x = zToSvg(Math.max(seg.zMm, 0));
+      const localRadius = rToSvg(diameterAtMm(acousticSegments, totalLengthMm - seg.zMm) * 0.5);
+      return {
+        id: seg.id,
+        label: seg.label,
+        x,
+        y1: centerY - localRadius,
+        y2: centerY + localRadius,
+      };
+    });
+
+    // Label each segment at the midpoint of its horizontal span.
+    // Use lane-based collision avoidance so narrow segments don't overlap.
+    const sortedSegs = [...segmentLines].sort((a, b) => a.x - b.x);
+    const rightEdge = width - marginX;
+    const laneBaseY = centerY + usableHalfHeight + 20;
+    const laneStep = 15;
+    const minLabelPad = 8;
+    const segLaneRightEdges: number[] = [];
+    const segmentLabels = sortedSegs.map((seg, i) => {
+      const nextX = i < sortedSegs.length - 1 ? sortedSegs[i + 1].x : rightEdge;
+      const midX = (seg.x + nextX) / 2;
+      const labelW = Math.max(seg.label.length * 6.2 + 10, 30);
+      const leftEdge = midX - labelW / 2;
+
+      let lane = 0;
+      while (
+        lane < segLaneRightEdges.length &&
+        leftEdge <= segLaneRightEdges[lane] + minLabelPad
+      ) {
+        lane += 1;
+      }
+      segLaneRightEdges[lane] = midX + labelW / 2;
+
+      return {
+        id: seg.id,
+        label: seg.label,
+        x: midX,
+        y: laneBaseY + lane * laneStep,
+        labelW,
+        boreBottomY: seg.y2,
+        lane,
+      };
+    });
+
+    // Expand SVG height to fit however many lanes were needed.
+    const maxLane = Math.max(...segmentLabels.map((s) => s.lane), 0);
+    const adjustedHeight = laneBaseY + maxLane * laneStep + 18;
+
     return {
       width,
-      height,
+      height: adjustedHeight,
       centerY,
       polygon,
       holesOnBore,
+      segmentLines,
+      segmentLabels,
       zToSvg,
       rToSvg,
     };
-  }, [holes, profilePoints, totalLengthMm]);
+  }, [acousticSegments, holes, profilePoints, totalLengthMm]);
 
   function applySnapshot(saved: DesignSnapshot): void {
     setName(saved.name);
@@ -842,6 +947,7 @@ export default function App() {
         targetNote: chalumeauNote,
         ventHoleId: hole.id,
         register: "fundamental",
+        termination: "vent-hole",
       });
 
       generatedFingerings.push({
@@ -850,6 +956,7 @@ export default function App() {
         targetNote: clarionNote,
         ventHoleId: hole.id,
         register: "third",
+        termination: "vent-hole",
       });
     }
 
@@ -1162,6 +1269,7 @@ export default function App() {
                     id: makeId("hole"),
                     label: `H${prev.length + 1}`,
                     zMm: Math.max(180, prev.length * 36 + 180),
+                    angleDeg: 0,
                     diameterMm: 7,
                     chimneyMm: 3,
                     targetNote: "",
@@ -1177,12 +1285,17 @@ export default function App() {
             Tone-hole z uses the same convention as the bore profile: 0 mm is the bell end, and
             larger z values move upward toward the barrel and mouthpiece.
           </p>
+          <p className="math">
+            Circumferential location uses degrees from the front centerline: front = 0, back =
+            -180, side keys = +/-90.
+          </p>
 
           <table>
             <thead>
               <tr>
                 <th>Label</th>
                 <th>z from bell (mm)</th>
+                <th>Angle (deg)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
                 <th>Wall (mm)</th>
@@ -1204,6 +1317,22 @@ export default function App() {
                       type="number"
                       value={hole.zMm}
                       onChange={(e) => updateHole(hole.id, "zMm", Number(e.target.value))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="1"
+                      min={-180}
+                      max={180}
+                      value={hole.angleDeg}
+                      onChange={(e) =>
+                        updateHole(
+                          hole.id,
+                          "angleDeg",
+                          normalizeHoleAngleDeg(Number(e.target.value))
+                        )
+                      }
                     />
                   </td>
                   <td>
@@ -1298,6 +1427,17 @@ export default function App() {
                 className="bore-centerline"
               />
 
+              {boreSvg.segmentLines.map((seg) => (
+                <line
+                  key={seg.id}
+                  x1={seg.x}
+                  y1={seg.y1}
+                  x2={seg.x}
+                  y2={seg.y2}
+                  className="segment-divider"
+                />
+              ))}
+
               <polygon points={boreSvg.polygon} className="bore-shape" />
 
               {boreSvg.holesOnBore.map((hole) => {
@@ -1338,10 +1478,34 @@ export default function App() {
                 );
               })}
 
-              <text x="24" y={boreSvg.height - 10} className="axis-label">
+              {boreSvg.segmentLabels.map((seg) => (
+                <g key={seg.id}>
+                  <circle cx={seg.x} cy={seg.boreBottomY + 5} r="3.5" className="segment-dot" />
+                  <line
+                    x1={seg.x}
+                    y1={seg.boreBottomY + 9}
+                    x2={seg.x}
+                    y2={seg.y - 9}
+                    className="segment-leader"
+                  />
+                  <rect
+                    x={seg.x - seg.labelW / 2}
+                    y={seg.y - 9}
+                    width={seg.labelW}
+                    height="15"
+                    rx="4"
+                    className="segment-label-box"
+                  />
+                  <text x={seg.x} y={seg.y} className="segment-label">
+                    {seg.label}
+                  </text>
+                </g>
+              ))}
+
+              <text x="24" y={boreSvg.height - 4} className="axis-label">
                 0 mm (bell end)
               </text>
-              <text x={boreSvg.width - 24} y={boreSvg.height - 10} className="axis-label axis-right">
+              <text x={boreSvg.width - 24} y={boreSvg.height - 4} className="axis-label axis-right">
                 {totalLengthMm.toFixed(1)} mm (mouthpiece side)
               </text>
             </svg>
@@ -1354,6 +1518,9 @@ export default function App() {
             Base relation: f = c / (4L_eff), with hole vent correction added to L_eff from bore and
             chimney geometry.
           </p>
+          <p className="math">
+            Note: Target cents and recommendation are evaluated against f1 (chalumeau).
+          </p>
 
           <table>
             <thead>
@@ -1365,7 +1532,6 @@ export default function App() {
                 <th>L_eff</th>
                 <th>f1</th>
                 <th>f3</th>
-                <th>Register</th>
                 <th>Target Hz</th>
                 <th>Nearest</th>
                 <th>Target cents</th>
@@ -1386,9 +1552,6 @@ export default function App() {
                   <td>{result.effectiveLengthMm.toFixed(2)} mm</td>
                   <td>{result.predictedFundamentalHz.toFixed(2)} Hz</td>
                   <td>{result.predictedThirdHz.toFixed(2)} Hz</td>
-                  <td className="register-cell">
-                    {result.activeRegister === "third" ? "Clarion" : "Fund."}
-                  </td>
                   <td className="target-hz-cell">
                     {result.targetHz !== null
                       ? `${result.targetHz.toFixed(2)} Hz`
@@ -1436,6 +1599,7 @@ export default function App() {
                     targetNote: "",
                     ventHoleId: holes[0]?.id ?? "",
                     register: "fundamental",
+                    termination: "vent-hole",
                   },
                 ])
               }
@@ -1486,6 +1650,7 @@ export default function App() {
                 <th>Target</th>
                 <th>Vent hole</th>
                 <th>Register</th>
+                <th>Termination</th>
                 <th>Predicted</th>
                 <th>Nearest</th>
                 <th>Error to target</th>
@@ -1540,6 +1705,21 @@ export default function App() {
                       >
                         <option value="fundamental">Fundamental (chalumeau)</option>
                         <option value="third">Third harmonic (clarion)</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={fingering.termination}
+                        onChange={(e) =>
+                          updateFingering(
+                            fingering.id,
+                            "termination",
+                            e.target.value as "vent-hole" | "bell"
+                          )
+                        }
+                      >
+                        <option value="vent-hole">Vent hole</option>
+                        <option value="bell">Bell (all covered)</option>
                       </select>
                     </td>
                     <td>

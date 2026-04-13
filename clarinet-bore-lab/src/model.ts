@@ -10,6 +10,7 @@ export type ToneHole = {
   id: string;
   label: string;
   zMm: number;
+  angleDeg: number;
   diameterMm: number;
   chimneyMm: number;
   targetNote: string;
@@ -21,6 +22,7 @@ export type Fingering = {
   targetNote: string;
   ventHoleId: string;
   register: "fundamental" | "third";
+  termination: "vent-hole" | "bell";
 };
 
 export type HoleEvaluation = {
@@ -71,6 +73,24 @@ const NOTE_NAMES = [
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeHoleAngleDeg(angleDeg: number): number {
+  if (!Number.isFinite(angleDeg)) {
+    return 0;
+  }
+  let wrapped = ((angleDeg + 180) % 360 + 360) % 360 - 180;
+  if (wrapped === -180) {
+    wrapped = -180;
+  }
+  return wrapped;
+}
+
+function minimalAngleDeltaDeg(aDeg: number, bDeg: number): number {
+  const a = normalizeHoleAngleDeg(aDeg);
+  const b = normalizeHoleAngleDeg(bDeg);
+  const raw = Math.abs(a - b);
+  return Math.min(raw, 360 - raw);
 }
 
 export function speedOfSoundMs(tempC: number): number {
@@ -316,6 +336,50 @@ export function evaluateFingerings(
   const tol = Math.max(Math.abs(toleranceCents), 0.1);
 
   return fingerings.map((fingering) => {
+    if (fingering.termination === "bell") {
+      const effectiveLengthMm = Math.max(totalBoreLengthMm(segments), 0.1);
+      const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
+      const predictedHz =
+        fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
+
+      const targetMidi = parseScientificPitch(fingering.targetNote);
+      if (targetMidi === null) {
+        return {
+          id: fingering.id,
+          label: fingering.label,
+          targetNote: fingering.targetNote,
+          ventHoleLabel: "Bell termination",
+          register: fingering.register,
+          predictedHz,
+          nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
+          centsErrorToTarget: null,
+          withinTolerance: false,
+          note: "Target note format should look like E4, F#4, or Bb3.",
+        };
+      }
+
+      const targetHz = midiToHz(targetMidi, a4Hz);
+      const cents = centsError(predictedHz, targetHz);
+
+      return {
+        id: fingering.id,
+        label: fingering.label,
+        targetNote: fingering.targetNote,
+        ventHoleLabel: "Bell termination",
+        register: fingering.register,
+        predictedHz,
+        nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
+        centsErrorToTarget: cents,
+        withinTolerance: Math.abs(cents) <= tol,
+        note:
+          Math.abs(cents) <= tol
+            ? "In band"
+            : cents > 0
+              ? "Sharp"
+              : "Flat",
+      };
+    }
+
     const hole = findHoleById(holes, fingering.ventHoleId);
     if (!hole) {
       return {
@@ -385,17 +449,28 @@ export function spacingWarnings(
   const ordered = [...holes].sort((a, b) => a.zMm - b.zMm);
   const warnings: string[] = [];
 
-  for (let i = 1; i < ordered.length; i += 1) {
-    const prev = ordered[i - 1];
-    const curr = ordered[i];
-    const gap = curr.zMm - prev.zMm;
-    const localBore = diameterAtMm(segments, distanceFromMouthpieceMm(segments, curr.zMm));
-    const threshold = Math.max(localBore * 0.8, 8);
+  for (let i = 0; i < ordered.length; i += 1) {
+    for (let j = i + 1; j < ordered.length; j += 1) {
+      const a = ordered[i];
+      const b = ordered[j];
+      const axialGapMm = Math.abs(b.zMm - a.zMm);
 
-    if (gap < threshold) {
-      warnings.push(
-        `${prev.label} to ${curr.label} spacing (${gap.toFixed(1)} mm) may be too tight for stable venting and finger ergonomics.`
-      );
+      const localBoreA = diameterAtMm(segments, distanceFromMouthpieceMm(segments, a.zMm));
+      const localBoreB = diameterAtMm(segments, distanceFromMouthpieceMm(segments, b.zMm));
+      const avgRadiusMm = Math.max((localBoreA + localBoreB) * 0.25, 0.5);
+
+      const deltaAngleRad = (minimalAngleDeltaDeg(a.angleDeg, b.angleDeg) * Math.PI) / 180;
+      const circumferentialGapMm = avgRadiusMm * deltaAngleRad;
+      const centerDistanceMm = Math.hypot(axialGapMm, circumferentialGapMm);
+
+      const localBore = Math.max((localBoreA + localBoreB) * 0.5, 1);
+      const threshold = Math.max(localBore * 0.8, 8);
+
+      if (centerDistanceMm < threshold) {
+        warnings.push(
+          `${a.label} to ${b.label} separation (${centerDistanceMm.toFixed(1)} mm along body) may be too tight for stable venting and finger ergonomics.`
+        );
+      }
     }
   }
 

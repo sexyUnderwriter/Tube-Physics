@@ -73,6 +73,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-reg-b",
       "label": "Register (B-Klappe)",
       "zMm": 556.7,
+      "angleDeg": -180,
       "diameterMm": 3.0,
       "chimneyMm": 18.0,
       "targetNote": "B4"
@@ -81,6 +82,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-a-key",
       "label": "A Key (A-Klappe)",
       "zMm": 516.7,
+      "angleDeg": 0,
       "diameterMm": 6.3,
       "chimneyMm": 14.0,
       "targetNote": "A4"
@@ -89,6 +91,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-thumb-0",
       "label": "Thumb (Hole 0)",
       "zMm": 479.2,
+      "angleDeg": -180,
       "diameterMm": 7.0,
       "chimneyMm": 13.0,
       "targetNote": "G4"
@@ -97,6 +100,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-1",
       "label": "Finger 1",
       "zMm": 468.2,
+      "angleDeg": 0,
       "diameterMm": 6.5,
       "chimneyMm": 12.5,
       "targetNote": "F4"
@@ -105,6 +109,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-2",
       "label": "Finger 2",
       "zMm": 439.2,
+      "angleDeg": 0,
       "diameterMm": 7.0,
       "chimneyMm": 12.5,
       "targetNote": "E4"
@@ -113,6 +118,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-3",
       "label": "Finger 3",
       "zMm": 410.2,
+      "angleDeg": 0,
       "diameterMm": 7.0,
       "chimneyMm": 12.0,
       "targetNote": "D4"
@@ -121,6 +127,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-4",
       "label": "Finger 4",
       "zMm": 369.7,
+      "angleDeg": 0,
       "diameterMm": 6.9,
       "chimneyMm": 11.5,
       "targetNote": "C4"
@@ -129,6 +136,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-5",
       "label": "Finger 5",
       "zMm": 338.7,
+      "angleDeg": 0,
       "diameterMm": 7.0,
       "chimneyMm": 11.0,
       "targetNote": "B3"
@@ -137,6 +145,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-6",
       "label": "Finger 6",
       "zMm": 310.7,
+      "angleDeg": 0,
       "diameterMm": 7.0,
       "chimneyMm": 11.0,
       "targetNote": "A3"
@@ -145,6 +154,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-finger-7",
       "label": "Finger 7 (Bell)",
       "zMm": 282.7,
+      "angleDeg": 0,
       "diameterMm": 5.5,
       "chimneyMm": 10.5,
       "targetNote": "G3"
@@ -156,14 +166,16 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Chalumeau D3 (All closed)",
       "targetNote": "D3",
       "ventHoleId": "hole-finger-7",
-      "register": "fundamental"
+      "register": "fundamental",
+      "termination": "bell"
     },
     {
       "id": "fing-clar-a4",
       "label": "Clarion A4 (All closed + Reg)",
       "targetNote": "A4",
       "ventHoleId": "hole-reg-b",
-      "register": "third"
+      "register": "third",
+      "termination": "vent-hole"
     }
   ]
 }

@@ -380,6 +380,36 @@ thead th {
   stroke-width: 2;
 }
 
+.segment-divider {
+  stroke: rgba(38, 102, 164, 0.55);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.segment-label {
+  fill: #184d81;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.segment-label-box {
+  fill: rgba(240, 247, 255, 0.97);
+  stroke: rgba(38, 102, 164, 0.28);
+}
+
+.segment-dot {
+  fill: #2666a4;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.segment-leader {
+  stroke: rgba(38, 102, 164, 0.55);
+  stroke-width: 1;
+}
+
 .hole-stem {
   stroke: rgba(209, 99, 42, 0.85);
   stroke-width: 1.6;
