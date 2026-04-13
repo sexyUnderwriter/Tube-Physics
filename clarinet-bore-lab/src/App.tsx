@@ -626,6 +626,11 @@ export default function App() {
   }, [profileRows]);
 
   const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
+  const physicalInstrumentLengthMm = useMemo(
+    () =>
+      bodyLengthMm + Math.max(mouthpiece.insertMm, 0) + Math.max(mouthpiece.overallLengthMm, 0),
+    [bodyLengthMm, mouthpiece.insertMm, mouthpiece.overallLengthMm]
+  );
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
   const results = useMemo(
     () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings),
@@ -675,8 +680,11 @@ export default function App() {
       Math.max(...profilePoints.map((point) => point.diameterMm * 0.5), 8) * 1.15;
     const usableHalfHeight = 108;
 
-    const tipLengthMm = Math.max(mouthpiece.overallLengthMm - mouthpiece.insertMm, 0);
-    const visualTotalMm = totalLengthMm + tipLengthMm;
+    // Physical extent beyond acoustic endpoint uses the full mouthpiece length.
+    // Acoustic total already includes insert depth; adding overall length yields
+    // body + insert + full mouthpiece physical extent.
+    const mouthpiecePhysicalLengthMm = Math.max(mouthpiece.overallLengthMm, 0);
+    const visualTotalMm = totalLengthMm + mouthpiecePhysicalLengthMm;
 
     const zToSvg = (zMm: number): number => {
       if (visualTotalMm <= 0) {
@@ -706,7 +714,8 @@ export default function App() {
     const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
     const labelLaneHeight = 18;
     const minLabelGap = 10;
-    const laneRightEdges: number[] = [];
+    const topLaneRightEdges: number[] = [];
+    const bottomLaneRightEdges: number[] = [];
     const holesOnBore = [...holes]
       .sort((a, b) => a.zMm - b.zMm)
       .map((hole) => {
@@ -714,6 +723,9 @@ export default function App() {
         const localRadius = rToSvg(hole.diameterMm * 0.5);
         const labelWidth = Math.max(hole.label.length * 6.6 + 12, 44);
         const leftEdge = x - labelWidth / 2;
+        const angle = Number.isFinite(hole.angleDeg) ? hole.angleDeg : 0;
+        const isBackHole = Math.abs(Math.abs(angle) - 180) <= 20;
+        const laneRightEdges = isBackHole ? bottomLaneRightEdges : topLaneRightEdges;
 
         let laneIndex = 0;
         while (
@@ -730,8 +742,16 @@ export default function App() {
           x,
           localRadius,
           labelWidth,
-          labelY: centerY - localRadius - 36 - laneIndex * labelLaneHeight,
-          dotY: centerY - localRadius - 28,
+          labelY: isBackHole
+            ? centerY + localRadius + 36 + laneIndex * labelLaneHeight
+            : centerY - localRadius - 36 - laneIndex * labelLaneHeight,
+          dotY: isBackHole ? centerY + localRadius + 28 : centerY - localRadius - 28,
+          stemFromY: isBackHole ? centerY + localRadius + 4 : centerY - localRadius - 4,
+          stemToY: isBackHole ? centerY + localRadius + 24 : centerY - localRadius - 24,
+          leaderFromY: isBackHole ? centerY + localRadius + 33 : centerY - localRadius - 33,
+          leaderToY: isBackHole
+            ? centerY + localRadius + 30 + laneIndex * labelLaneHeight
+            : centerY - localRadius - 30 - laneIndex * labelLaneHeight,
         };
       });
 
@@ -811,7 +831,7 @@ export default function App() {
     const tipX1 = zToSvg(visualTotalMm);
     const tipR0 = rToSvg(mouthpiece.boreMm * 0.5);
     const tipR1 = rToSvg(2);
-    const mouthpieceTip = tipLengthMm > 0
+    const mouthpieceTip = mouthpiecePhysicalLengthMm > 0
       ? [
           `${tipX0.toFixed(2)},${(centerY - tipR0).toFixed(2)}`,
           `${tipX1.toFixed(2)},${(centerY - tipR1).toFixed(2)}`,
@@ -930,6 +950,82 @@ export default function App() {
     setSegments((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [key]: Number.isFinite(value) ? value : 0 } : s))
     );
+  }
+
+  function updateSegmentCumulativeZ(id: string, rawValue: number): void {
+    const nextZ = Number.isFinite(rawValue) ? Math.max(rawValue, 0) : 0;
+    setSegments((prev) => {
+      const ordered = prev
+        .map((segment, index) => ({ id: segment.id, index, zMm: segment.zMm }))
+        .sort((a, b) => a.zMm - b.zMm);
+      const targetPos = ordered.findIndex((point) => point.id === id);
+      if (targetPos < 0) {
+        return prev;
+      }
+
+      const delta = nextZ - ordered[targetPos].zMm;
+      const posByIndex = new Map<number, number>();
+      ordered.forEach((point, pos) => {
+        posByIndex.set(point.index, pos);
+      });
+
+      return prev.map((segment, index) => {
+        const pos = posByIndex.get(index);
+        if (pos === undefined || pos < targetPos) {
+          return segment;
+        }
+        if (pos === targetPos) {
+          return { ...segment, zMm: nextZ };
+        }
+        return { ...segment, zMm: Math.max(segment.zMm + delta, 0) };
+      });
+    });
+  }
+
+  function updateSegmentPhysicalLength(id: string, rawValue: number): void {
+    const nextLength = Number.isFinite(rawValue) ? Math.max(rawValue, 0) : 0;
+    let nextInsertMm: number | null = null;
+
+    setSegments((prev) => {
+      const ordered = prev
+        .map((segment, index) => ({ id: segment.id, index, zMm: segment.zMm }))
+        .sort((a, b) => a.zMm - b.zMm);
+      const targetPos = ordered.findIndex((point) => point.id === id);
+      if (targetPos < 0) {
+        return prev;
+      }
+
+      // Last body point length is the mouthpiece insert length.
+      if (targetPos === ordered.length - 1) {
+        nextInsertMm = nextLength;
+        return prev;
+      }
+
+      const current = ordered[targetPos];
+      const next = ordered[targetPos + 1];
+      const oldLength = Math.max(next.zMm - current.zMm, 0);
+      const delta = nextLength - oldLength;
+      const posByIndex = new Map<number, number>();
+      ordered.forEach((point, pos) => {
+        posByIndex.set(point.index, pos);
+      });
+
+      return prev.map((segment, index) => {
+        const pos = posByIndex.get(index);
+        if (pos === undefined || pos <= targetPos) {
+          return segment;
+        }
+        return { ...segment, zMm: Math.max(segment.zMm + delta, 0) };
+      });
+    });
+
+    if (nextInsertMm !== null) {
+      setMouthpiece((prev) => ({
+        ...prev,
+        insertMm: nextInsertMm as number,
+        presetApplied: false,
+      }));
+    }
   }
 
   function updateSegmentLabel(id: string, value: string): void {
@@ -1221,8 +1317,12 @@ export default function App() {
           </p>
           <div className="stat-row">
             <div>
-              <span>Total length</span>
+              <span>Acoustic length</span>
               <strong>{totalLengthMm.toFixed(1)} mm</strong>
+            </div>
+            <div>
+              <span>Physical length</span>
+              <strong>{physicalInstrumentLengthMm.toFixed(1)} mm</strong>
             </div>
             <div>
               <span>Speed of sound</span>
@@ -1307,7 +1407,7 @@ export default function App() {
                       onChange={(e) =>
                         source === "mouthpiece"
                           ? updateMouthpieceSegment("zMm", Number(e.target.value))
-                          : updateSegment(segment.id, "zMm", Number(e.target.value))
+                          : updateSegmentCumulativeZ(segment.id, Number(e.target.value))
                       }
                     />
                   </td>
@@ -1346,11 +1446,13 @@ export default function App() {
                         }
                       />
                     ) : (
-                      <span className="muted-cell">
-                        {partLengthById.get(segment.id) !== null
-                          ? `${(partLengthById.get(segment.id) ?? 0).toFixed(1)}`
-                          : "—"}
-                      </span>
+                      <input
+                        type="number"
+                        value={partLengthById.get(segment.id) ?? ""}
+                        onChange={(e) =>
+                          updateSegmentPhysicalLength(segment.id, Number(e.target.value))
+                        }
+                      />
                     )}
                   </td>
                   <td>
@@ -1562,9 +1664,9 @@ export default function App() {
                   <g key={hole.id}>
                     <line
                       x1={hole.x}
-                      y1={boreSvg.centerY - hole.localRadius - 4}
+                      y1={hole.stemFromY}
                       x2={hole.x}
-                      y2={hole.dotY + 4}
+                      y2={hole.stemToY}
                       className="hole-stem"
                     />
                     <circle
@@ -1575,9 +1677,9 @@ export default function App() {
                     />
                     <line
                       x1={hole.x}
-                      y1={hole.dotY - 5}
+                      y1={hole.leaderFromY}
                       x2={hole.x}
-                      y2={hole.labelY + 4}
+                      y2={hole.leaderToY}
                       className="hole-label-leader"
                     />
                     <rect
