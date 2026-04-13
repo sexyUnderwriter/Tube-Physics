@@ -1,0 +1,13 @@
+{
+  "name": "air-tube-physics-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "clarinet-bore-lab"
+  ],
+  "scripts": {
+    "dev": "cd clarinet-bore-lab && npm run dev",
+    "build": "cd clarinet-bore-lab && npm run build",
+    "preview": "cd clarinet-bore-lab && npm run preview"
+  }
+}
