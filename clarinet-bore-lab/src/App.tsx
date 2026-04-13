@@ -24,6 +24,7 @@ type MouthpiecePreset = {
   facingLength: "Short" | "Medium" | "Long";
   acousticInsertMm: number;
   shankBoreMm: number;
+  overallLengthMm: number;
   sourceUrl: string;
 };
 
@@ -31,6 +32,7 @@ type MouthpieceGeometry = {
   label: string;
   insertMm: number;
   boreMm: number;
+  overallLengthMm: number;
   presetApplied: boolean;
 };
 
@@ -210,6 +212,14 @@ const initialFingerings: Fingering[] = [
     register: "third",
     termination: "vent-hole",
   },
+  {
+    id: makeId("fing"),
+    label: "All closed",
+    targetNote: "C3",
+    ventHoleId: initialHoles[0].id,
+    register: "fundamental",
+    termination: "bell",
+  },
 ];
 
 const mouthpiecePresets: MouthpiecePreset[] = [
@@ -222,6 +232,7 @@ const mouthpiecePresets: MouthpiecePreset[] = [
     facingLength: "Short",
     acousticInsertMm: 18,
     shankBoreMm: 12.6,
+    overallLengthMm: 75,
     sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/5rv-eb-clarinet-reeds/",
   },
   {
@@ -233,6 +244,7 @@ const mouthpiecePresets: MouthpiecePreset[] = [
     facingLength: "Medium",
     acousticInsertMm: 21,
     shankBoreMm: 14.8,
+    overallLengthMm: 86,
     sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/5rv-lyre-bb-clarinet-mouthpiece/",
   },
   {
@@ -244,6 +256,7 @@ const mouthpiecePresets: MouthpiecePreset[] = [
     facingLength: "Long",
     acousticInsertMm: 24,
     shankBoreMm: 16.8,
+    overallLengthMm: 110,
     sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/t6-v16-tenor-saxophone-mouthpiece/",
   },
 ];
@@ -259,6 +272,7 @@ function buildMouthpieceGeometry(preset: MouthpiecePreset): MouthpieceGeometry {
     label: "Mouthpiece",
     insertMm: preset.acousticInsertMm,
     boreMm: preset.shankBoreMm,
+    overallLengthMm: preset.overallLengthMm,
     presetApplied: true,
   };
 }
@@ -516,6 +530,10 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
             Number.isFinite(parsed.mouthpiece.boreMm) && parsed.mouthpiece.boreMm !== undefined
               ? Math.max(parsed.mouthpiece.boreMm, 0)
               : preset.shankBoreMm,
+          overallLengthMm:
+            Number.isFinite(parsed.mouthpiece.overallLengthMm) && parsed.mouthpiece.overallLengthMm !== undefined
+              ? Math.max(parsed.mouthpiece.overallLengthMm, 0)
+              : preset.overallLengthMm,
           presetApplied: parsed.mouthpiece.presetApplied !== false,
         }
       : buildMouthpieceGeometry(preset);
@@ -589,6 +607,24 @@ export default function App() {
     [mouthpieceSegment, segments]
   );
 
+  const partLengthById = useMemo(() => {
+    const sortedRows = [...profileRows].sort((a, b) => a.segment.zMm - b.segment.zMm);
+    const lengths = new Map<string, number | null>();
+
+    for (let i = 0; i < sortedRows.length; i += 1) {
+      const current = sortedRows[i];
+      const next = i < sortedRows.length - 1 ? sortedRows[i + 1] : null;
+      if (!next) {
+        lengths.set(current.segment.id, null);
+        continue;
+      }
+
+      lengths.set(current.segment.id, Math.max(next.segment.zMm - current.segment.zMm, 0));
+    }
+
+    return lengths;
+  }, [profileRows]);
+
   const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
   const results = useMemo(
@@ -639,11 +675,14 @@ export default function App() {
       Math.max(...profilePoints.map((point) => point.diameterMm * 0.5), 8) * 1.15;
     const usableHalfHeight = 108;
 
+    const tipLengthMm = Math.max(mouthpiece.overallLengthMm - mouthpiece.insertMm, 0);
+    const visualTotalMm = totalLengthMm + tipLengthMm;
+
     const zToSvg = (zMm: number): number => {
-      if (totalLengthMm <= 0) {
+      if (visualTotalMm <= 0) {
         return marginX;
       }
-      return marginX + (zMm / totalLengthMm) * (width - marginX * 2);
+      return marginX + (zMm / visualTotalMm) * (width - marginX * 2);
     };
 
     const rToSvg = (radiusMm: number): number =>
@@ -711,18 +750,35 @@ export default function App() {
       };
     });
 
+    // Generate ruler ticks at regular intervals (every 50mm for visualTotalMm >= 500, else every 100mm)
+    const tickInterval = visualTotalMm >= 500 ? 50 : 100;
+    const rulerTicks = [];
+    for (let zMm = tickInterval; zMm < visualTotalMm; zMm += tickInterval) {
+      rulerTicks.push({
+        zMm,
+        x: zToSvg(zMm),
+        label: `${zMm}`,
+      });
+    }
+
     // Label each segment at the midpoint of its horizontal span.
     // Use lane-based collision avoidance so narrow segments don't overlap.
     const sortedSegs = [...segmentLines].sort((a, b) => a.x - b.x);
     const rightEdge = width - marginX;
-    const laneBaseY = centerY + usableHalfHeight + 20;
+    const laneBaseY = centerY + usableHalfHeight + 55; // Extra space for ruler ticks
     const laneStep = 15;
     const minLabelPad = 8;
     const segLaneRightEdges: number[] = [];
     const segmentLabels = sortedSegs.map((seg, i) => {
       const nextX = i < sortedSegs.length - 1 ? sortedSegs[i + 1].x : rightEdge;
       const midX = (seg.x + nextX) / 2;
-      const labelW = Math.max(seg.label.length * 6.2 + 10, 30);
+      // Get z-value from segment object for label
+      const segmentObj = acousticSegments.find((s) => s.id === seg.id);
+      const zEnd = segmentObj?.zMm ?? 0;
+      const labelText = segmentObj
+        ? `${seg.label} (${zEnd.toFixed(0)}mm)`
+        : seg.label;
+      const labelW = Math.max(labelText.length * 6.2 + 10, 30);
       const leftEdge = midX - labelW / 2;
 
       let lane = 0;
@@ -737,6 +793,7 @@ export default function App() {
       return {
         id: seg.id,
         label: seg.label,
+        labelText,
         x: midX,
         y: laneBaseY + lane * laneStep,
         labelW,
@@ -749,6 +806,20 @@ export default function App() {
     const maxLane = Math.max(...segmentLabels.map((s) => s.lane), 0);
     const adjustedHeight = laneBaseY + maxLane * laneStep + 18;
 
+    // Mouthpiece tip polygon: tapers from acoustic endpoint bore diameter to the physical beak tip.
+    const tipX0 = zToSvg(totalLengthMm);
+    const tipX1 = zToSvg(visualTotalMm);
+    const tipR0 = rToSvg(mouthpiece.boreMm * 0.5);
+    const tipR1 = rToSvg(2);
+    const mouthpieceTip = tipLengthMm > 0
+      ? [
+          `${tipX0.toFixed(2)},${(centerY - tipR0).toFixed(2)}`,
+          `${tipX1.toFixed(2)},${(centerY - tipR1).toFixed(2)}`,
+          `${tipX1.toFixed(2)},${(centerY + tipR1).toFixed(2)}`,
+          `${tipX0.toFixed(2)},${(centerY + tipR0).toFixed(2)}`,
+        ].join(" ")
+      : null;
+
     return {
       width,
       height: adjustedHeight,
@@ -757,10 +828,13 @@ export default function App() {
       holesOnBore,
       segmentLines,
       segmentLabels,
+      rulerTicks,
       zToSvg,
       rToSvg,
+      mouthpieceTip,
+      visualTotalMm,
     };
-  }, [acousticSegments, holes, profilePoints, totalLengthMm]);
+  }, [acousticSegments, holes, mouthpiece, profilePoints, totalLengthMm]);
 
   function applySnapshot(saved: DesignSnapshot): void {
     setName(saved.name);
@@ -875,7 +949,7 @@ export default function App() {
   }
 
   function updateMouthpieceSegment(
-    key: "label" | "zMm" | "diameterMm",
+    key: "label" | "zMm" | "diameterMm" | "overallLengthMm",
     value: string | number
   ): void {
     setMouthpiece((prev) => {
@@ -887,6 +961,14 @@ export default function App() {
         return {
           ...prev,
           insertMm: Math.max(Number(value) - bodyLengthMm, 0),
+          presetApplied: false,
+        };
+      }
+
+      if (key === "overallLengthMm") {
+        return {
+          ...prev,
+          overallLengthMm: Math.max(Number(value), 0),
           presetApplied: false,
         };
       }
@@ -915,7 +997,21 @@ export default function App() {
     value: string
   ): void {
     setFingerings((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, [key]: value as never } : f))
+      prev.map((f) => {
+        if (f.id !== id) {
+          return f;
+        }
+
+        const updated = { ...f, [key]: value as never };
+        
+        // Auto-infer termination if label changed to "all closed"
+        if (key === "label" && typeof value === "string") {
+          const shouldBeBell = /all\s*closed|all\s*covered/i.test(value);
+          updated.termination = shouldBeBell ? "bell" : f.termination;
+        }
+
+        return updated;
+      })
     );
   }
 
@@ -1169,6 +1265,7 @@ export default function App() {
                 <th>z (mm)</th>
                 <th>Inner dia (mm)</th>
                 <th>Outer dia (mm)</th>
+                <th>Phys. L (mm)</th>
                 <th></th>
               </tr>
             </thead>
@@ -1237,6 +1334,23 @@ export default function App() {
                           updateSegmentOuterDiameter(segment.id, e.target.value)
                         }
                       />
+                    )}
+                  </td>
+                  <td>
+                    {source === "mouthpiece" ? (
+                      <input
+                        type="number"
+                        value={mouthpiece.overallLengthMm}
+                        onChange={(e) =>
+                          updateMouthpieceSegment("overallLengthMm", Number(e.target.value))
+                        }
+                      />
+                    ) : (
+                      <span className="muted-cell">
+                        {partLengthById.get(segment.id) !== null
+                          ? `${(partLengthById.get(segment.id) ?? 0).toFixed(1)}`
+                          : "—"}
+                      </span>
                     )}
                   </td>
                   <td>
@@ -1439,6 +1553,9 @@ export default function App() {
               ))}
 
               <polygon points={boreSvg.polygon} className="bore-shape" />
+              {boreSvg.mouthpieceTip !== null && (
+                <polygon points={boreSvg.mouthpieceTip} className="mouthpiece-shape" />
+              )}
 
               {boreSvg.holesOnBore.map((hole) => {
                 return (
@@ -1478,6 +1595,21 @@ export default function App() {
                 );
               })}
 
+              {boreSvg.rulerTicks.map((tick) => (
+                <g key={`ruler-${tick.zMm}`}>
+                  <line
+                    x1={tick.x}
+                    y1={boreSvg.centerY + 108}
+                    x2={tick.x}
+                    y2={boreSvg.centerY + 113}
+                    className="ruler-tick"
+                  />
+                  <text x={tick.x} y={boreSvg.centerY + 128} className="ruler-label">
+                    {tick.label}
+                  </text>
+                </g>
+              ))}
+
               {boreSvg.segmentLabels.map((seg) => (
                 <g key={seg.id}>
                   <circle cx={seg.x} cy={seg.boreBottomY + 5} r="3.5" className="segment-dot" />
@@ -1497,7 +1629,7 @@ export default function App() {
                     className="segment-label-box"
                   />
                   <text x={seg.x} y={seg.y} className="segment-label">
-                    {seg.label}
+                    {seg.labelText}
                   </text>
                 </g>
               ))}
@@ -1506,7 +1638,7 @@ export default function App() {
                 0 mm (bell end)
               </text>
               <text x={boreSvg.width - 24} y={boreSvg.height - 4} className="axis-label axis-right">
-                {totalLengthMm.toFixed(1)} mm (mouthpiece side)
+                {boreSvg.visualTotalMm.toFixed(1)} mm (mouthpiece tip)
               </text>
             </svg>
           </div>

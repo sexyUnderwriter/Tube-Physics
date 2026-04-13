@@ -378,6 +378,13 @@ thead th {
   fill: rgba(38, 102, 164, 0.19);
   stroke: #2666a4;
   stroke-width: 2;
+
+.mouthpiece-shape {
+  fill: rgba(90, 60, 30, 0.13);
+  stroke: #7a5230;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
 }
 
 .segment-divider {
@@ -446,6 +453,18 @@ thead th {
 
 .axis-right {
   text-anchor: end;
+}
+
+.ruler-tick {
+  stroke: rgba(100, 100, 100, 0.4);
+  stroke-width: 1;
+}
+
+.ruler-label {
+  fill: #666;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  text-anchor: middle;
 }
 
 .advice {

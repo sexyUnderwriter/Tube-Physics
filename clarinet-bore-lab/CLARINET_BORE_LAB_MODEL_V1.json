@@ -66,6 +66,7 @@ CLARINET_BORE_LAB_MODEL_V1
     "label": "Mouthpiece",
     "insertMm": 21,
     "boreMm": 14.8,
+    "overallLengthMm": 86,
     "presetApplied": true
   },
   "holes": [
