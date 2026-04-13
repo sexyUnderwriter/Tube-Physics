@@ -1,0 +1,164 @@
+CLARINET_BORE_LAB_MODEL_V1
+{
+  "version": 1,
+  "name": "Jakob Denner Clarinet #223 (C Clarinet)",
+  "tempC": 20,
+  "pitchStandardHz": 430,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "D3",
+  "selectedMouthpieceId": "vandoren-bb-5rv-lyre",
+  "segments": [
+    {
+      "id": "seg-bell-rim",
+      "label": "Bell exit (rim)",
+      "zMm": 0,
+      "diameterMm": 58.8
+    },
+    {
+      "id": "seg-bell-flare-mid",
+      "label": "Bell mid-flare",
+      "zMm": 30,
+      "diameterMm": 40.5
+    },
+    {
+      "id": "seg-bell-transition",
+      "label": "Bell transition",
+      "zMm": 100,
+      "diameterMm": 22.3
+    },
+    {
+      "id": "seg-lower-joint-bottom",
+      "label": "Lower joint (bottom)",
+      "zMm": 200,
+      "diameterMm": 14.8
+    },
+    {
+      "id": "seg-middle-joint",
+      "label": "Middle joint main bore",
+      "zMm": 350,
+      "diameterMm": 14.7
+    },
+    {
+      "id": "seg-upper-joint-top",
+      "label": "Upper joint (top)",
+      "zMm": 511.7,
+      "diameterMm": 14.6
+    },
+    {
+      "id": "seg-barrel-lower",
+      "label": "Barrel lower socket",
+      "zMm": 533.7,
+      "diameterMm": 14.6
+    },
+    {
+      "id": "seg-barrel-top",
+      "label": "Barrel mouthpiece socket",
+      "zMm": 556.7,
+      "diameterMm": 14.8
+    }
+  ],
+  "mouthpiece": {
+    "label": "Mouthpiece",
+    "insertMm": 21,
+    "boreMm": 14.8,
+    "presetApplied": true
+  },
+  "holes": [
+    {
+      "id": "hole-reg-b",
+      "label": "Register (B-Klappe)",
+      "zMm": 556.7,
+      "diameterMm": 3.0,
+      "chimneyMm": 18.0,
+      "targetNote": "B4"
+    },
+    {
+      "id": "hole-a-key",
+      "label": "A Key (A-Klappe)",
+      "zMm": 516.7,
+      "diameterMm": 6.3,
+      "chimneyMm": 14.0,
+      "targetNote": "A4"
+    },
+    {
+      "id": "hole-thumb-0",
+      "label": "Thumb (Hole 0)",
+      "zMm": 479.2,
+      "diameterMm": 7.0,
+      "chimneyMm": 13.0,
+      "targetNote": "G4"
+    },
+    {
+      "id": "hole-finger-1",
+      "label": "Finger 1",
+      "zMm": 468.2,
+      "diameterMm": 6.5,
+      "chimneyMm": 12.5,
+      "targetNote": "F4"
+    },
+    {
+      "id": "hole-finger-2",
+      "label": "Finger 2",
+      "zMm": 439.2,
+      "diameterMm": 7.0,
+      "chimneyMm": 12.5,
+      "targetNote": "E4"
+    },
+    {
+      "id": "hole-finger-3",
+      "label": "Finger 3",
+      "zMm": 410.2,
+      "diameterMm": 7.0,
+      "chimneyMm": 12.0,
+      "targetNote": "D4"
+    },
+    {
+      "id": "hole-finger-4",
+      "label": "Finger 4",
+      "zMm": 369.7,
+      "diameterMm": 6.9,
+      "chimneyMm": 11.5,
+      "targetNote": "C4"
+    },
+    {
+      "id": "hole-finger-5",
+      "label": "Finger 5",
+      "zMm": 338.7,
+      "diameterMm": 7.0,
+      "chimneyMm": 11.0,
+      "targetNote": "B3"
+    },
+    {
+      "id": "hole-finger-6",
+      "label": "Finger 6",
+      "zMm": 310.7,
+      "diameterMm": 7.0,
+      "chimneyMm": 11.0,
+      "targetNote": "A3"
+    },
+    {
+      "id": "hole-finger-7",
+      "label": "Finger 7 (Bell)",
+      "zMm": 282.7,
+      "diameterMm": 5.5,
+      "chimneyMm": 10.5,
+      "targetNote": "G3"
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-chal-d3",
+      "label": "Chalumeau D3 (All closed)",
+      "targetNote": "D3",
+      "ventHoleId": "hole-finger-7",
+      "register": "fundamental"
+    },
+    {
+      "id": "fing-clar-a4",
+      "label": "Clarion A4 (All closed + Reg)",
+      "targetNote": "A4",
+      "ventHoleId": "hole-reg-b",
+      "register": "third"
+    }
+  ]
+}

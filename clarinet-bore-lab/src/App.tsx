@@ -25,6 +25,13 @@ type MouthpiecePreset = {
   sourceUrl: string;
 };
 
+type MouthpieceGeometry = {
+  label: string;
+  insertMm: number;
+  boreMm: number;
+  presetApplied: boolean;
+};
+
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -219,6 +226,21 @@ const mouthpiecePresets: MouthpiecePreset[] = [
   },
 ];
 
+const defaultMouthpiecePreset = mouthpiecePresets[1];
+
+function findMouthpiecePreset(id: string): MouthpiecePreset | undefined {
+  return mouthpiecePresets.find((preset) => preset.id === id);
+}
+
+function buildMouthpieceGeometry(preset: MouthpiecePreset): MouthpieceGeometry {
+  return {
+    label: "Mouthpiece",
+    insertMm: preset.acousticInsertMm,
+    boreMm: preset.shankBoreMm,
+    presetApplied: true,
+  };
+}
+
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
 type DesignSnapshot = {
@@ -230,12 +252,16 @@ type DesignSnapshot = {
   firstChalumeauNote: string;
   selectedMouthpieceId: string;
   segments: BoreSegment[];
+  mouthpiece: MouthpieceGeometry;
   holes: ToneHole[];
   fingerings: Fingering[];
 };
 
 type LegacyToneHole = Omit<ToneHole, "zMm"> & { positionMm: number };
-type SnapshotV1 = Omit<DesignSnapshot, "holes"> & { holes: Array<ToneHole | LegacyToneHole> };
+type SnapshotV1 = Omit<DesignSnapshot, "holes" | "mouthpiece"> & {
+  holes: Array<ToneHole | LegacyToneHole>;
+  mouthpiece?: Partial<MouthpieceGeometry>;
+};
 
 function serializeSnapshot(snapshot: DesignSnapshot): string {
   return [FILE_HEADER, JSON.stringify(snapshot, null, 2)].join("\n");
@@ -252,6 +278,8 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
     if (parsed.version !== 1) {
       return null;
     }
+
+    const preset = findMouthpiecePreset(parsed.selectedMouthpieceId) ?? defaultMouthpiecePreset;
 
     const baseLengthMm = Math.max(
       0,
@@ -289,8 +317,28 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
       };
     });
 
+    const mouthpiece: MouthpieceGeometry = parsed.mouthpiece
+      ? {
+          label:
+            typeof parsed.mouthpiece.label === "string" && parsed.mouthpiece.label.trim().length > 0
+              ? parsed.mouthpiece.label
+              : "Mouthpiece",
+          insertMm:
+            Number.isFinite(parsed.mouthpiece.insertMm) && parsed.mouthpiece.insertMm !== undefined
+              ? Math.max(parsed.mouthpiece.insertMm, 0)
+              : preset.acousticInsertMm,
+          boreMm:
+            Number.isFinite(parsed.mouthpiece.boreMm) && parsed.mouthpiece.boreMm !== undefined
+              ? Math.max(parsed.mouthpiece.boreMm, 0)
+              : preset.shankBoreMm,
+          presetApplied: parsed.mouthpiece.presetApplied !== false,
+        }
+      : buildMouthpieceGeometry(preset);
+
     return {
       ...parsed,
+      selectedMouthpieceId: preset.id,
+      mouthpiece,
       holes: normalizedHoles,
     };
   } catch {
@@ -307,26 +355,38 @@ export default function App() {
   const [toleranceCents, setToleranceCents] = useState(10);
   const [fingerings, setFingerings] = useState<Fingering[]>(initialFingerings);
   const [firstChalumeauNote, setFirstChalumeauNote] = useState("D3");
-  const [selectedMouthpieceId, setSelectedMouthpieceId] = useState(mouthpiecePresets[1].id);
+  const [selectedMouthpieceId, setSelectedMouthpieceId] = useState(defaultMouthpiecePreset.id);
   const [activeMouthpiece, setActiveMouthpiece] = useState<MouthpiecePreset>(
-    mouthpiecePresets[1]
+    defaultMouthpiecePreset
+  );
+  const [mouthpiece, setMouthpiece] = useState<MouthpieceGeometry>(
+    buildMouthpieceGeometry(defaultMouthpiecePreset)
   );
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [loadStatus, setLoadStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const acousticSegments = useMemo<BoreSegment[]>(() => {
-    const baseLength = totalBoreLengthMm(segments);
-    return [
-      ...segments,
-      {
-        id: "mouthpiece-point",
-        label: "Mouthpiece",
-        zMm: baseLength + activeMouthpiece.acousticInsertMm,
-        diameterMm: activeMouthpiece.shankBoreMm,
-      },
-    ];
-  }, [activeMouthpiece.acousticInsertMm, activeMouthpiece.shankBoreMm, segments]);
+  const bodyLengthMm = useMemo(() => totalBoreLengthMm(segments), [segments]);
+  const mouthpieceSegment = useMemo<BoreSegment>(
+    () => ({
+      id: "mouthpiece-point",
+      label: mouthpiece.label,
+      zMm: bodyLengthMm + Math.max(mouthpiece.insertMm, 0),
+      diameterMm: Math.max(mouthpiece.boreMm, 0),
+    }),
+    [bodyLengthMm, mouthpiece.boreMm, mouthpiece.insertMm, mouthpiece.label]
+  );
+  const acousticSegments = useMemo<BoreSegment[]>(
+    () => [...segments, mouthpieceSegment],
+    [mouthpieceSegment, segments]
+  );
+  const profileRows = useMemo(
+    () => [
+      ...segments.map((segment) => ({ segment, source: "body" as const })),
+      { segment: mouthpieceSegment, source: "mouthpiece" as const },
+    ],
+    [mouthpieceSegment, segments]
+  );
 
   const totalLengthMm = useMemo(() => totalBoreLengthMm(acousticSegments), [acousticSegments]);
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
@@ -424,14 +484,13 @@ export default function App() {
     setToleranceCents(saved.toleranceCents);
     setFirstChalumeauNote(saved.firstChalumeauNote);
     setSegments(saved.segments);
+    setMouthpiece(saved.mouthpiece);
     setHoles(saved.holes);
     setFingerings(saved.fingerings);
 
-    const preset = mouthpiecePresets.find((candidate) => candidate.id === saved.selectedMouthpieceId);
-    if (preset) {
-      setSelectedMouthpieceId(preset.id);
-      setActiveMouthpiece(preset);
-    }
+    const preset = findMouthpiecePreset(saved.selectedMouthpieceId) ?? defaultMouthpiecePreset;
+    setSelectedMouthpieceId(preset.id);
+    setActiveMouthpiece(preset);
   }
 
   function buildCurrentSnapshot(): DesignSnapshot {
@@ -444,17 +503,20 @@ export default function App() {
       firstChalumeauNote,
       selectedMouthpieceId,
       segments,
+      mouthpiece,
       holes,
       fingerings,
     };
   }
 
   function applyMouthpiecePreset(presetId: string): void {
-    const preset = mouthpiecePresets.find((candidate) => candidate.id === presetId);
+    const preset = findMouthpiecePreset(presetId);
     if (!preset) {
       return;
     }
+    setSelectedMouthpieceId(preset.id);
     setActiveMouthpiece(preset);
+    setMouthpiece(buildMouthpieceGeometry(preset));
   }
 
   function saveToTextFile(): void {
@@ -517,6 +579,31 @@ export default function App() {
         segment.id === id ? { ...segment, label: value } : segment
       )
     );
+  }
+
+  function updateMouthpieceSegment(
+    key: "label" | "zMm" | "diameterMm",
+    value: string | number
+  ): void {
+    setMouthpiece((prev) => {
+      if (key === "label") {
+        return { ...prev, label: String(value) };
+      }
+
+      if (key === "zMm") {
+        return {
+          ...prev,
+          insertMm: Math.max(Number(value) - bodyLengthMm, 0),
+          presetApplied: false,
+        };
+      }
+
+      return {
+        ...prev,
+        boreMm: Math.max(Number(value), 0),
+        presetApplied: false,
+      };
+    });
   }
 
   function updateHole(
@@ -663,11 +750,18 @@ export default function App() {
             {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
           </div>
           {loadStatus && <p className="math">{loadStatus}</p>}
+          <div className="badge-row">
+            {mouthpiece.presetApplied ? (
+              <span className="badge good">Preset geometry active</span>
+            ) : (
+              <span className="badge warn">Preset no longer applicable after mouthpiece edits</span>
+            )}
+          </div>
           <p className="math">
-            Active: {activeMouthpiece.label} ({activeMouthpiece.instrument}), tip opening{" "}
+            Selected preset: {activeMouthpiece.label} ({activeMouthpiece.instrument}), tip opening{" "}
             {activeMouthpiece.openingMm.toFixed(3)} mm ({activeMouthpiece.openingHundredthMm} x
-            1/100 mm), facing {activeMouthpiece.facingLength}. Acoustic insert ={" "}
-            {activeMouthpiece.acousticInsertMm.toFixed(1)} mm.
+            1/100 mm), facing {activeMouthpiece.facingLength}. Current mouthpiece insert ={" "}
+            {mouthpiece.insertMm.toFixed(1)} mm, bore point = {mouthpiece.boreMm.toFixed(2)} mm.
           </p>
           <div className="stat-row">
             <div>
@@ -711,27 +805,51 @@ export default function App() {
             <thead>
               <tr>
                 <th>Part label</th>
+                <th>Source</th>
                 <th>z (mm)</th>
                 <th>Diameter (mm)</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {segments.map((segment, index) => (
+              {profileRows.map(({ segment, source }, index) => (
                 <tr key={segment.id}>
                   <td>
                     <input
                       value={segment.label}
                       placeholder={`P${index + 1}`}
-                      onChange={(e) => updateSegmentLabel(segment.id, e.target.value)}
+                      onChange={(e) =>
+                        source === "mouthpiece"
+                          ? updateMouthpieceSegment("label", e.target.value)
+                          : updateSegmentLabel(segment.id, e.target.value)
+                      }
                     />
+                  </td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        source === "mouthpiece"
+                          ? mouthpiece.presetApplied
+                            ? "good"
+                            : "warn"
+                          : "neutral"
+                      }`}
+                    >
+                      {source === "mouthpiece"
+                        ? mouthpiece.presetApplied
+                          ? "Preset mouthpiece"
+                          : "Custom mouthpiece"
+                        : "Body"}
+                    </span>
                   </td>
                   <td>
                     <input
                       type="number"
                       value={segment.zMm}
                       onChange={(e) =>
-                        updateSegment(segment.id, "zMm", Number(e.target.value))
+                        source === "mouthpiece"
+                          ? updateMouthpieceSegment("zMm", Number(e.target.value))
+                          : updateSegment(segment.id, "zMm", Number(e.target.value))
                       }
                     />
                   </td>
@@ -740,7 +858,9 @@ export default function App() {
                       type="number"
                       value={segment.diameterMm}
                       onChange={(e) =>
-                        updateSegment(segment.id, "diameterMm", Number(e.target.value))
+                        source === "mouthpiece"
+                          ? updateMouthpieceSegment("diameterMm", Number(e.target.value))
+                          : updateSegment(segment.id, "diameterMm", Number(e.target.value))
                       }
                     />
                   </td>
@@ -751,9 +871,9 @@ export default function App() {
                       onClick={() =>
                         setSegments((prev) => prev.filter((candidate) => candidate.id !== segment.id))
                       }
-                      disabled={segments.length <= 1}
+                      disabled={source === "mouthpiece" || segments.length <= 1}
                     >
-                      Remove
+                      {source === "mouthpiece" ? "Preset" : "Remove"}
                     </button>
                   </td>
                 </tr>
