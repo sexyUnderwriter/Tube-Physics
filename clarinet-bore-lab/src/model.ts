@@ -22,7 +22,7 @@ export type Fingering = {
   targetNote: string;
   ventHoleId: string;
   register: "fundamental" | "third";
-  termination: "vent-hole" | "bell";
+  termination: "vent-hole" | "below-open-vent-closed" | "bell";
 };
 
 export type HoleEvaluation = {
@@ -35,7 +35,7 @@ export type HoleEvaluation = {
   predictedFundamentalHz: number;
   predictedThirdHz: number;
   activeRegister: "fundamental" | "third";
-  activeTermination: "vent-hole" | "bell";
+  activeTermination: "vent-hole" | "below-open-vent-closed" | "bell";
   predictedActiveHz: number;
   targetHz: number | null;
   nearestNote: string;
@@ -228,10 +228,16 @@ function effectiveLengthForHole(hole: ToneHole, localBoreMm: number): number {
   const rh = Math.max(hole.diameterMm * 0.5, 0.3);
   const chimney = Math.max(hole.chimneyMm, 0.1);
 
-  // Approximate closed-open clarinet vent correction from branch inertance.
-  const branchInertanceTerm = ((rb * rb) / (rh * rh)) * (0.45 * chimney + 0.25 * rh);
-  const openEndTerm = 0.3 * rb;
-  return branchInertanceTerm + openEndTerm;
+  const boreArea = Math.PI * rb * rb;
+  const holeArea = Math.PI * rh * rh;
+
+  // Use a Keefe-style effective chimney, then add a partial contribution from
+  // the downstream tube below the open hole. This better matches large clarinet
+  // finger holes than the previous inertance-only approximation.
+  const effectiveChimneyMm = chimney + 0.47 * rh + 0.821 * rh;
+  const holeShuntTermMm = (boreArea / holeArea) * effectiveChimneyMm;
+  const downstreamLoadTermMm = hole.zMm * (holeArea / (boreArea + holeArea));
+  return holeShuntTermMm + downstreamLoadTermMm;
 }
 
 function correctionAdvice(centsToTarget: number | null): string {
@@ -261,6 +267,33 @@ function findHoleById(holes: ToneHole[], id: string): ToneHole | null {
   return null;
 }
 
+function fundamentalFromBellTermination(segments: BoreSegment[], cMs: number): number {
+  return frequencyFromQuarterWave(Math.max(totalBoreLengthMm(segments), 0.1), cMs);
+}
+
+function fundamentalFromHoleTermination(
+  segments: BoreSegment[],
+  hole: ToneHole,
+  cMs: number
+): number {
+  const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+  const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+  const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
+  return frequencyFromQuarterWave(effectiveLengthMm, cMs);
+}
+
+function firstOpenBelowHole(
+  holes: ToneHole[],
+  referenceHoleId: string
+): ToneHole | null {
+  const ordered = [...holes].sort((a, b) => a.zMm - b.zMm);
+  const index = ordered.findIndex((hole) => hole.id === referenceHoleId);
+  if (index <= 0) {
+    return null;
+  }
+  return ordered[index - 1];
+}
+
 export function evaluateToneHoles(
   segments: BoreSegment[],
   holes: ToneHole[],
@@ -272,7 +305,10 @@ export function evaluateToneHoles(
   // Prefer fundamental if present because hole.targetNote is a chalumeau target.
   const usageMap = new Map<
     string,
-    { register: "fundamental" | "third"; termination: "vent-hole" | "bell" }
+    {
+      register: "fundamental" | "third";
+      termination: "vent-hole" | "below-open-vent-closed" | "bell";
+    }
   >();
   for (const hole of holes) {
     const matches = fingerings.filter((f) => f.ventHoleId === hole.id);
@@ -306,12 +342,16 @@ export function evaluateToneHoles(
       const activeRegister = usage?.register ?? "fundamental";
       const activeTermination = usage?.termination ?? "vent-hole";
 
-      const bellFundamentalHz = frequencyFromQuarterWave(
-        Math.max(totalBoreLengthMm(segments), 0.1),
-        cMs
-      );
-      const modelFundamentalHz =
-        activeTermination === "bell" ? bellFundamentalHz : fundamentalHz;
+      let modelFundamentalHz = fundamentalHz;
+      if (activeTermination === "bell") {
+        modelFundamentalHz = fundamentalFromBellTermination(segments, cMs);
+      }
+      if (activeTermination === "below-open-vent-closed") {
+        const openBelow = firstOpenBelowHole(holes, hole.id);
+        modelFundamentalHz = openBelow
+          ? fundamentalFromHoleTermination(segments, openBelow, cMs)
+          : fundamentalFromBellTermination(segments, cMs);
+      }
       const modelThirdHz = oddHarmonic(modelFundamentalHz, 2);
       const predictedActiveHz = activeRegister === "third" ? modelThirdHz : modelFundamentalHz;
 
@@ -360,8 +400,7 @@ export function evaluateFingerings(
 
   return fingerings.map((fingering) => {
     if (fingering.termination === "bell") {
-      const effectiveLengthMm = Math.max(totalBoreLengthMm(segments), 0.1);
-      const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
+      const fundamentalHz = fundamentalFromBellTermination(segments, cMs);
       const predictedHz =
         fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
 
@@ -419,10 +458,57 @@ export function evaluateFingerings(
       };
     }
 
-    const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
-    const localBoreMm = diameterAtMm(segments, holeDistanceMm);
-    const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
-    const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
+    let soundingHole = hole;
+    let resolvedVentHoleLabel = hole.label;
+    if (fingering.termination === "below-open-vent-closed") {
+      const openBelow = firstOpenBelowHole(holes, hole.id);
+      if (openBelow) {
+        soundingHole = openBelow;
+        resolvedVentHoleLabel = `${openBelow.label} (first open below)`;
+      } else {
+        const bellFundamentalHz = fundamentalFromBellTermination(segments, cMs);
+        const predictedHz =
+          fingering.register === "third" ? oddHarmonic(bellFundamentalHz, 2) : bellFundamentalHz;
+
+        const targetMidi = parseScientificPitch(fingering.targetNote);
+        if (targetMidi === null) {
+          return {
+            id: fingering.id,
+            label: fingering.label,
+            targetNote: fingering.targetNote,
+            ventHoleLabel: "Bell termination (no lower hole)",
+            register: fingering.register,
+            predictedHz,
+            nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
+            centsErrorToTarget: null,
+            withinTolerance: false,
+            note: "Target note format should look like E4, F#4, or Bb3.",
+          };
+        }
+
+        const targetHz = midiToHz(targetMidi, a4Hz);
+        const cents = centsError(predictedHz, targetHz);
+        return {
+          id: fingering.id,
+          label: fingering.label,
+          targetNote: fingering.targetNote,
+          ventHoleLabel: "Bell termination (no lower hole)",
+          register: fingering.register,
+          predictedHz,
+          nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
+          centsErrorToTarget: cents,
+          withinTolerance: Math.abs(cents) <= tol,
+          note:
+            Math.abs(cents) <= tol
+              ? "In band"
+              : cents > 0
+                ? "Sharp"
+                : "Flat",
+        };
+      }
+    }
+
+    const fundamentalHz = fundamentalFromHoleTermination(segments, soundingHole, cMs);
     const predictedHz =
       fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
 
@@ -432,7 +518,7 @@ export function evaluateFingerings(
         id: fingering.id,
         label: fingering.label,
         targetNote: fingering.targetNote,
-        ventHoleLabel: hole.label,
+        ventHoleLabel: resolvedVentHoleLabel,
         register: fingering.register,
         predictedHz,
         nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),
@@ -449,7 +535,7 @@ export function evaluateFingerings(
       id: fingering.id,
       label: fingering.label,
       targetNote: fingering.targetNote,
-      ventHoleLabel: hole.label,
+      ventHoleLabel: resolvedVentHoleLabel,
       register: fingering.register,
       predictedHz,
       nearestNote: midiToName(Math.round(hzToMidi(predictedHz, a4Hz))),

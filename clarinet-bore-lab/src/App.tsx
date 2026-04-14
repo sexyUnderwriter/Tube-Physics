@@ -434,7 +434,7 @@ type LegacyToneHole = Omit<ToneHole, "zMm" | "angleDeg"> & {
   angleDeg?: number;
 };
 type LegacyFingering = Omit<Fingering, "termination"> & {
-  termination?: "vent-hole" | "bell";
+  termination?: "vent-hole" | "below-open-vent-closed" | "bell";
 };
 type SnapshotV1 = Omit<DesignSnapshot, "holes" | "mouthpiece" | "fingerings"> & {
   holes: Array<ToneHole | LegacyToneHole>;
@@ -1130,16 +1130,17 @@ export default function App() {
       const clarionMidi = chalumeauMidi + 19;
       const chalumeauNote = midiToName(chalumeauMidi);
       const clarionNote = midiToName(clarionMidi);
+      const termination = i === 0 ? "bell" : "below-open-vent-closed";
 
       updatedTargets.set(hole.id, chalumeauNote);
 
       generatedFingerings.push({
         id: makeId("fing"),
-        label: `Chalumeau ${chalumeauNote}`,
+        label: i === 0 ? `All covered ${chalumeauNote}` : `Chalumeau ${chalumeauNote}`,
         targetNote: chalumeauNote,
         ventHoleId: hole.id,
         register: "fundamental",
-        termination: "vent-hole",
+        termination,
       });
 
       generatedFingerings.push({
@@ -1148,7 +1149,7 @@ export default function App() {
         targetNote: clarionNote,
         ventHoleId: hole.id,
         register: "third",
-        termination: "vent-hole",
+        termination,
       });
     }
 
@@ -1948,11 +1949,17 @@ export default function App() {
                           updateFingering(
                             fingering.id,
                             "termination",
-                            e.target.value as "vent-hole" | "bell"
+                            e.target.value as
+                              | "vent-hole"
+                              | "below-open-vent-closed"
+                              | "bell"
                           )
                         }
                       >
                         <option value="vent-hole">Vent hole</option>
+                        <option value="below-open-vent-closed">
+                          Holes below open, vent closed
+                        </option>
                         <option value="bell">Bell (all covered)</option>
                       </select>
                     </td>
