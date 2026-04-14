@@ -586,6 +586,68 @@ export function spacingWarnings(
   return warnings;
 }
 
+export function modelConfidenceWarnings(
+  holes: ToneHole[],
+  segments: BoreSegment[],
+  fingerings: Fingering[] = []
+): string[] {
+  const warnings: string[] = [];
+  const minSegmentDiameterMm = segments.reduce(
+    (minDiameter, segment) => Math.min(minDiameter, Math.max(segment.diameterMm, 0.1)),
+    Number.POSITIVE_INFINITY
+  );
+
+  for (const hole of holes) {
+    const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+    const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+    const rb = Math.max(localBoreMm * 0.5, 0.5);
+    const rh = Math.max(hole.diameterMm * 0.5, 0.3);
+    const boreArea = Math.PI * rb * rb;
+    const holeArea = Math.PI * rh * rh;
+    const areaFraction = holeArea / boreArea;
+
+    if (areaFraction > 0.2) {
+      warnings.push(
+        `${hole.label} is a large tone hole relative to the local bore (${(areaFraction * 100).toFixed(0)}% of bore area). The current first-order hole model becomes less reliable as hole size approaches bore size.`
+      );
+    }
+
+    if (
+      Number.isFinite(minSegmentDiameterMm) &&
+      localBoreMm > minSegmentDiameterMm * 1.15
+    ) {
+      warnings.push(
+        `${hole.label} sits in a strongly flared bore region (${localBoreMm.toFixed(1)} mm local bore versus ${minSegmentDiameterMm.toFixed(1)} mm minimum bore). Bell-flare holes often need a full impedance model for accurate pitch prediction.`
+      );
+    }
+  }
+
+  for (const fingering of fingerings) {
+    if (fingering.termination !== "below-open-vent-closed") {
+      continue;
+    }
+
+    const hole = findHoleById(holes, fingering.ventHoleId);
+    if (!hole) {
+      continue;
+    }
+
+    const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+    const localBoreMm = diameterAtMm(segments, holeDistanceMm);
+    const rb = Math.max(localBoreMm * 0.5, 0.5);
+    const rh = Math.max(hole.diameterMm * 0.5, 0.3);
+    const areaFraction = (rh * rh) / (rb * rb);
+
+    if (areaFraction < 0.1) {
+      warnings.push(
+        `${fingering.label} uses a small vent (${hole.label}) with the "holes below open, vent closed" termination. Small keyed vents are especially sensitive to impedance interactions, so treat this prediction as low confidence.`
+      );
+    }
+  }
+
+  return [...new Set(warnings)];
+}
+
 export function sampleBoreProfile(
   segments: BoreSegment[],
   sampleCount: number

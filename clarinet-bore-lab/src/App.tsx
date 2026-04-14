@@ -5,6 +5,7 @@ import {
   ToneHole,
   diameterAtMm,
   midiToName,
+  modelConfidenceWarnings,
   parseScientificPitch,
   sampleBoreProfile,
   evaluateFingerings,
@@ -639,6 +640,10 @@ export default function App() {
   const warnings = useMemo(
     () => spacingWarnings(holes, acousticSegments),
     [holes, acousticSegments]
+  );
+  const modelWarnings = useMemo(
+    () => modelConfidenceWarnings(holes, acousticSegments, fingerings),
+    [holes, acousticSegments, fingerings]
   );
   const fingeringResults = useMemo(
     () =>
@@ -1813,6 +1818,17 @@ export default function App() {
             ) : (
               <ul>
                 {warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            )}
+
+            <h3>Model Confidence Flags</h3>
+            {modelWarnings.length === 0 ? (
+              <p>No obvious out-of-range geometry detected for the current approximation.</p>
+            ) : (
+              <ul>
+                {modelWarnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
