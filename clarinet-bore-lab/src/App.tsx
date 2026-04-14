@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BoreSegment,
   Fingering,
@@ -570,7 +570,71 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [loadStatus, setLoadStatus] = useState<string | null>(null);
   const [converterMm, setConverterMm] = useState("8");
+  const [manualOpenById, setManualOpenById] = useState<Record<string, boolean>>({});
+  const [manualRegisterHoleId, setManualRegisterHoleId] = useState("");
+  const [manualPlaying, setManualPlaying] = useState(false);
+  const [audioDiagReport, setAudioDiagReport] = useState<string>("");
+  const [audioDiagRunning, setAudioDiagRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const manualAudioContextRef = useRef<AudioContext | null>(null);
+  const manualOscillatorRef = useRef<OscillatorNode | null>(null);
+  const manualGainRef = useRef<GainNode | null>(null);
+
+  useEffect(() => {
+    setManualOpenById((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const hole of holes) {
+        next[hole.id] = prev[hole.id] ?? false;
+      }
+      return next;
+    });
+  }, [holes]);
+
+  const detectedRegisterHoleId = useMemo(() => {
+    if (holes.length === 0) {
+      return "";
+    }
+
+    const labelMatch = holes.find((hole) => /register|reg|vent|speaker/i.test(hole.label));
+    if (labelMatch) {
+      return labelMatch.id;
+    }
+
+    const smallestDia = [...holes].sort((a, b) => a.diameterMm - b.diameterMm)[0];
+    return smallestDia?.id ?? "";
+  }, [holes]);
+
+  useEffect(() => {
+    const hasSelectedRegister = holes.some((hole) => hole.id === manualRegisterHoleId);
+    if (!hasSelectedRegister) {
+      setManualRegisterHoleId(detectedRegisterHoleId);
+    }
+  }, [detectedRegisterHoleId, holes, manualRegisterHoleId]);
+
+  function stopManualTone(): void {
+    const osc = manualOscillatorRef.current;
+    const gain = manualGainRef.current;
+    const ctx = manualAudioContextRef.current;
+
+    if (gain && ctx) {
+      const now = ctx.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(0.0001, now, 0.02);
+    }
+
+    if (osc) {
+      try {
+        osc.stop();
+      } catch {
+        // Oscillator may already be stopped.
+      }
+      osc.disconnect();
+    }
+    gain?.disconnect();
+
+    manualOscillatorRef.current = null;
+    manualGainRef.current = null;
+  }
 
   const converterMmValue = Number(converterMm);
   const hasConverterInput = Number.isFinite(converterMmValue) && converterMmValue > 0;
@@ -656,6 +720,101 @@ export default function App() {
         pitchStandardHz
       ),
     [acousticSegments, holes, fingerings, tempC, toleranceCents, pitchStandardHz]
+  );
+  const manualHoleButtons = useMemo(
+    () => [...holes].sort((a, b) => b.zMm - a.zMm),
+    [holes]
+  );
+  const manualFingeringPreview = useMemo(() => {
+    if (holes.length === 0) {
+      return {
+        predictedHz: null as number | null,
+        nearestNote: "N/A",
+        note: "Add a tone hole to test manual fingering.",
+        terminationLabel: "N/A",
+        registerLabel: "N/A",
+      };
+    }
+
+    const registerHoleId = manualRegisterHoleId || detectedRegisterHoleId;
+    const registerHole = holes.find((hole) => hole.id === registerHoleId) ?? null;
+    const registerOpen = registerHole ? Boolean(manualOpenById[registerHole.id]) : false;
+
+    const openHoles = holes
+      .filter((hole) => manualOpenById[hole.id] && hole.id !== registerHoleId)
+      .sort((a, b) => b.zMm - a.zMm);
+
+    const termination: "bell" | "vent-hole" = openHoles.length === 0 ? "bell" : "vent-hole";
+    const soundingHole = openHoles[0] ?? holes[0];
+
+    const preview = evaluateFingerings(
+      acousticSegments,
+      holes,
+      [
+        {
+          id: "manual-preview",
+          label: "Manual fingering",
+          targetNote: "A4",
+          ventHoleId: soundingHole.id,
+          register: registerOpen ? "third" : "fundamental",
+          termination,
+        },
+      ],
+      tempC,
+      toleranceCents,
+      pitchStandardHz
+    )[0];
+
+    const terminationLabel =
+      termination === "bell"
+        ? "Bell termination (all closed)"
+        : `${soundingHole.label} (first open from mouthpiece)`;
+    const registerLabel = registerHole
+      ? `${registerHole.label}: ${registerOpen ? "Open (clarion)" : "Closed (chalumeau)"}`
+      : "No register key selected";
+
+    return {
+      predictedHz: preview?.predictedHz ?? null,
+      nearestNote: preview?.nearestNote ?? "N/A",
+      note: preview?.note ?? "N/A",
+      terminationLabel,
+      registerLabel,
+    };
+  }, [
+    acousticSegments,
+    detectedRegisterHoleId,
+    holes,
+    manualOpenById,
+    manualRegisterHoleId,
+    pitchStandardHz,
+    tempC,
+    toleranceCents,
+  ]);
+
+  useEffect(() => {
+    const hz = manualFingeringPreview.predictedHz;
+    const ctx = manualAudioContextRef.current;
+    const osc = manualOscillatorRef.current;
+
+    if (!ctx || !osc) {
+      return;
+    }
+
+    if (hz === null) {
+      stopManualTone();
+      setManualPlaying(false);
+      return;
+    }
+
+    osc.frequency.setTargetAtTime(Math.max(hz, 1), ctx.currentTime, 0.03);
+  }, [manualFingeringPreview.predictedHz]);
+
+  useEffect(
+    () => () => {
+      stopManualTone();
+      manualAudioContextRef.current?.close();
+    },
+    []
   );
   const passCount = useMemo(
     () => fingeringResults.filter((result) => result.withinTolerance).length,
@@ -1087,8 +1246,22 @@ export default function App() {
     key: keyof Omit<ToneHole, "id">,
     value: string | number
   ): void {
+    const normalizedValue = (() => {
+      if (key === "diameterMm" || key === "chimneyMm" || key === "zMm") {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
+      }
+
+      if (key === "angleDeg") {
+        const numeric = Number(value);
+        return normalizeHoleAngleDeg(Number.isFinite(numeric) ? numeric : 0);
+      }
+
+      return value;
+    })();
+
     setHoles((prev) =>
-      prev.map((h) => (h.id === id ? { ...h, [key]: value as never } : h))
+      prev.map((h) => (h.id === id ? { ...h, [key]: normalizedValue as never } : h))
     );
   }
 
@@ -1165,6 +1338,160 @@ export default function App() {
       })
     );
     setFingerings(generatedFingerings);
+  }
+
+  async function toggleManualPlayback(): Promise<void> {
+    if (manualOscillatorRef.current) {
+      stopManualTone();
+      setManualPlaying(false);
+      return;
+    }
+
+    if (manualFingeringPreview.predictedHz === null) {
+      return;
+    }
+
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    let ctx = manualAudioContextRef.current;
+    if (!ctx || ctx.state === "closed") {
+      ctx = new AudioContextCtor();
+      manualAudioContextRef.current = ctx;
+    }
+
+    try {
+      if (ctx.state !== "running") {
+        await ctx.resume();
+      }
+    } catch {
+      const fresh = new AudioContextCtor();
+      manualAudioContextRef.current = fresh;
+      ctx = fresh;
+      await ctx.resume();
+    }
+
+    stopManualTone();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.04);
+    gain.connect(ctx.destination);
+
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(Math.max(manualFingeringPreview.predictedHz, 1), ctx.currentTime);
+    osc.connect(gain);
+    osc.onended = () => {
+      if (manualOscillatorRef.current === osc) {
+        manualOscillatorRef.current = null;
+        manualGainRef.current = null;
+        setManualPlaying(false);
+      }
+    };
+    osc.start();
+
+    manualGainRef.current = gain;
+    manualOscillatorRef.current = osc;
+    setManualPlaying(true);
+  }
+
+  async function runAudioDiagnostics(): Promise<void> {
+    setAudioDiagRunning(true);
+    const lines: string[] = [];
+
+    try {
+      const AudioContextCtor =
+        window.AudioContext ??
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+      if (!AudioContextCtor) {
+        setAudioDiagReport("FAIL: Web Audio API is not available in this browser/context.");
+        return;
+      }
+
+      lines.push("PASS: Web Audio API available");
+
+      let ctx = manualAudioContextRef.current;
+      if (!ctx || ctx.state === "closed") {
+        ctx = new AudioContextCtor();
+        manualAudioContextRef.current = ctx;
+      }
+
+      lines.push(`Context initial state: ${ctx.state}`);
+
+      await ctx.resume();
+      lines.push(`Context after resume(): ${ctx.state}`);
+      if (ctx.state !== "running") {
+        lines.push("FAIL: AudioContext did not enter running state.");
+        setAudioDiagReport(lines.join("\n"));
+        return;
+      }
+
+      // Build an isolated test path independent from manual fingering logic.
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+
+      osc.connect(gain);
+      gain.connect(analyser);
+      gain.connect(ctx.destination);
+      osc.start();
+
+      await new Promise<void>((resolve) => {
+        window.setTimeout(() => resolve(), 180);
+      });
+
+      const sample = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(sample);
+      let sumSq = 0;
+      for (let i = 0; i < sample.length; i += 1) {
+        sumSq += sample[i] * sample[i];
+      }
+      const rms = Math.sqrt(sumSq / sample.length);
+      lines.push(`Analyser RMS at 440 Hz: ${rms.toFixed(6)}`);
+
+      osc.stop();
+      osc.disconnect();
+      gain.disconnect();
+      analyser.disconnect();
+
+      if (rms < 0.0005) {
+        lines.push(
+          "FAIL: Oscillator path produced near-zero signal; likely blocked audio graph or suspended context."
+        );
+      } else {
+        lines.push("PASS: Oscillator signal is active in the audio graph.");
+        lines.push(
+          "If you still hear nothing, output is likely muted/routed elsewhere at browser or system level."
+        );
+      }
+
+      // Check manual chain state for immediate debugging context.
+      lines.push(
+        `Manual tone state: playing=${manualPlaying}, predictedHz=${
+          manualFingeringPreview.predictedHz === null
+            ? "N/A"
+            : manualFingeringPreview.predictedHz.toFixed(2)
+        }, oscNode=${manualOscillatorRef.current ? "present" : "none"}`
+      );
+
+      setAudioDiagReport(lines.join("\n"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      lines.push(`FAIL: Diagnostic exception: ${message}`);
+      setAudioDiagReport(lines.join("\n"));
+    } finally {
+      setAudioDiagRunning(false);
+    }
   }
 
   return (
@@ -1560,6 +1887,7 @@ export default function App() {
                   <td>
                     <input
                       type="number"
+                      min={0}
                       value={hole.diameterMm}
                       onChange={(e) => updateHole(hole.id, "diameterMm", Number(e.target.value))}
                     />
@@ -1567,6 +1895,7 @@ export default function App() {
                   <td>
                     <input
                       type="number"
+                      min={0}
                       value={hole.chimneyMm}
                       onChange={(e) => updateHole(hole.id, "chimneyMm", Number(e.target.value))}
                     />
@@ -1892,6 +2221,86 @@ export default function App() {
                 Mean abs error: {meanAbsCents === null ? "N/A" : `${meanAbsCents.toFixed(1)} cents`}
               </span>
             </div>
+          </div>
+
+          <div className="manual-fingering">
+            <h3>Manual Fingering Tester</h3>
+            <p className="math">
+              Toggle each tone hole open/closed, then play the predicted fundamental. The
+              oscillator tracks geometry and temperature edits in real time.
+            </p>
+            <div className="settings-row">
+              <label>
+                Register key
+                <select
+                  value={manualRegisterHoleId || detectedRegisterHoleId}
+                  onChange={(e) => setManualRegisterHoleId(e.target.value)}
+                >
+                  {holes.map((hole) => (
+                    <option key={hole.id} value={hole.id}>
+                      {hole.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="manual-hole-buttons">
+              {manualHoleButtons.map((hole) => {
+                const isOpen = manualOpenById[hole.id] ?? false;
+                const isRegisterHole =
+                  hole.id === (manualRegisterHoleId || detectedRegisterHoleId);
+                return (
+                  <button
+                    key={hole.id}
+                    type="button"
+                    className={`manual-hole-btn ${isOpen ? "open" : "closed"}`}
+                    onClick={() =>
+                      setManualOpenById((prev) => ({
+                        ...prev,
+                        [hole.id]: !isOpen,
+                      }))
+                    }
+                  >
+                    {hole.label}
+                    {isRegisterHole ? " (register)" : ""}: {isOpen ? "Open" : "Closed"}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="manual-readout">
+              <span className="badge neutral">{manualFingeringPreview.registerLabel}</span>
+              <span className="badge neutral">{manualFingeringPreview.terminationLabel}</span>
+              <span className="badge neutral">
+                Predicted: {manualFingeringPreview.predictedHz === null
+                  ? "N/A"
+                  : `${manualFingeringPreview.predictedHz.toFixed(2)} Hz`}
+              </span>
+              <span className="badge neutral">Nearest: {manualFingeringPreview.nearestNote}</span>
+              <span
+                className={`badge ${
+                  manualFingeringPreview.note === "In band" ? "good" : "warn"
+                }`}
+              >
+                {manualFingeringPreview.note}
+              </span>
+              <button
+                type="button"
+                onClick={toggleManualPlayback}
+                disabled={manualFingeringPreview.predictedHz === null}
+              >
+                {manualPlaying ? "Stop" : "Play"}
+              </button>
+              <button
+                type="button"
+                onClick={runAudioDiagnostics}
+                disabled={audioDiagRunning}
+              >
+                {audioDiagRunning ? "Testing audio..." : "Run audio test"}
+              </button>
+            </div>
+            {audioDiagReport.trim().length > 0 && (
+              <pre className="audio-diag-report">{audioDiagReport}</pre>
+            )}
           </div>
 
           <table>

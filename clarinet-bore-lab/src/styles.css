@@ -524,6 +524,59 @@ thead th {
   padding-left: 1.2rem;
 }
 
+.manual-fingering {
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.62rem;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.manual-hole-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.62rem;
+}
+
+.manual-hole-btn {
+  background: rgba(38, 102, 164, 0.13);
+  color: #184d81;
+  border: 1px solid rgba(38, 102, 164, 0.3);
+}
+
+.manual-hole-btn.open {
+  background: rgba(21, 122, 57, 0.14);
+  color: #11582f;
+  border-color: rgba(21, 122, 57, 0.32);
+}
+
+.manual-hole-btn.closed {
+  background: rgba(209, 99, 42, 0.13);
+  color: #8d431b;
+  border-color: rgba(209, 99, 42, 0.28);
+}
+
+.manual-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.audio-diag-report {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(15, 24, 36, 0.92);
+  color: #d8e4f2;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
 footer {
   margin-top: 0.72rem;
   padding: 0.72rem 0.82rem;
