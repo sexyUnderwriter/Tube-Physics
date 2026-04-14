@@ -573,6 +573,8 @@ export default function App() {
   const [manualOpenById, setManualOpenById] = useState<Record<string, boolean>>({});
   const [manualRegisterHoleId, setManualRegisterHoleId] = useState("");
   const [manualPlaying, setManualPlaying] = useState(false);
+  const [manualOutputGain, setManualOutputGain] = useState(0.32);
+  const [manualPlaybackStatus, setManualPlaybackStatus] = useState("");
   const [audioDiagReport, setAudioDiagReport] = useState<string>("");
   const [audioDiagRunning, setAudioDiagRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -795,8 +797,9 @@ export default function App() {
     const hz = manualFingeringPreview.predictedHz;
     const ctx = manualAudioContextRef.current;
     const osc = manualOscillatorRef.current;
+    const gain = manualGainRef.current;
 
-    if (!ctx || !osc) {
+    if (!ctx || !osc || !gain) {
       return;
     }
 
@@ -807,7 +810,12 @@ export default function App() {
     }
 
     osc.frequency.setTargetAtTime(Math.max(hz, 1), ctx.currentTime, 0.03);
-  }, [manualFingeringPreview.predictedHz]);
+    gain.gain.setTargetAtTime(
+      Math.max(0.01, Math.min(manualOutputGain, 0.9)),
+      ctx.currentTime,
+      0.03
+    );
+  }, [manualFingeringPreview.predictedHz, manualOutputGain]);
 
   useEffect(
     () => () => {
@@ -1344,10 +1352,12 @@ export default function App() {
     if (manualOscillatorRef.current) {
       stopManualTone();
       setManualPlaying(false);
+      setManualPlaybackStatus("Manual tone stopped.");
       return;
     }
 
     if (manualFingeringPreview.predictedHz === null) {
+      setManualPlaybackStatus("Cannot play: predicted frequency is unavailable.");
       return;
     }
 
@@ -1355,48 +1365,82 @@ export default function App() {
       window.AudioContext ??
       (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextCtor) {
+      setManualPlaybackStatus("Cannot play: Web Audio API is unavailable.");
       return;
     }
 
-    let ctx = manualAudioContextRef.current;
-    if (!ctx || ctx.state === "closed") {
-      ctx = new AudioContextCtor();
-      manualAudioContextRef.current = ctx;
-    }
-
     try {
+      let ctx = manualAudioContextRef.current;
+      if (!ctx || ctx.state === "closed") {
+        ctx = new AudioContextCtor();
+        manualAudioContextRef.current = ctx;
+      }
+
       if (ctx.state !== "running") {
         await ctx.resume();
       }
-    } catch {
-      const fresh = new AudioContextCtor();
-      manualAudioContextRef.current = fresh;
-      ctx = fresh;
-      await ctx.resume();
-    }
 
-    stopManualTone();
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.04);
-    gain.connect(ctx.destination);
-
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(Math.max(manualFingeringPreview.predictedHz, 1), ctx.currentTime);
-    osc.connect(gain);
-    osc.onended = () => {
-      if (manualOscillatorRef.current === osc) {
-        manualOscillatorRef.current = null;
-        manualGainRef.current = null;
-        setManualPlaying(false);
+      if (ctx.state !== "running") {
+        throw new Error(`AudioContext is not running (state=${ctx.state})`);
       }
-    };
-    osc.start();
 
-    manualGainRef.current = gain;
-    manualOscillatorRef.current = osc;
-    setManualPlaying(true);
+      stopManualTone();
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(
+        Math.max(0.01, Math.min(manualOutputGain, 0.9)),
+        ctx.currentTime + 0.04
+      );
+      gain.connect(ctx.destination);
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      gain.connect(analyser);
+
+      const osc = ctx.createOscillator();
+      // Triangle keeps pitch accurate while adding harmonics for low-note audibility.
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(
+        Math.max(manualFingeringPreview.predictedHz, 1),
+        ctx.currentTime
+      );
+      osc.connect(gain);
+      osc.onended = () => {
+        if (manualOscillatorRef.current === osc) {
+          manualOscillatorRef.current = null;
+          manualGainRef.current = null;
+          setManualPlaying(false);
+        }
+      };
+      osc.start();
+
+      manualGainRef.current = gain;
+      manualOscillatorRef.current = osc;
+      setManualPlaying(true);
+
+      await new Promise<void>((resolve) => {
+        window.setTimeout(() => resolve(), 120);
+      });
+
+      const sample = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(sample);
+      analyser.disconnect();
+      let sumSq = 0;
+      for (let i = 0; i < sample.length; i += 1) {
+        sumSq += sample[i] * sample[i];
+      }
+      const rms = Math.sqrt(sumSq / sample.length);
+
+      setManualPlaybackStatus(
+        `Play ok: ${manualFingeringPreview.predictedHz.toFixed(2)} Hz, gain=${manualOutputGain.toFixed(2)}, context=${ctx.state}, rms=${rms.toFixed(6)}`
+      );
+    } catch (error) {
+      stopManualTone();
+      setManualPlaying(false);
+      const message = error instanceof Error ? error.message : String(error);
+      setManualPlaybackStatus(`Play failed: ${message}`);
+      return;
+    }
   }
 
   async function runAudioDiagnostics(): Promise<void> {
@@ -2243,6 +2287,17 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              <label>
+                Output gain
+                <input
+                  type="range"
+                  min={0.05}
+                  max={0.9}
+                  step={0.01}
+                  value={manualOutputGain}
+                  onChange={(e) => setManualOutputGain(Number(e.target.value))}
+                />
+              </label>
             </div>
             <div className="manual-hole-buttons">
               {manualHoleButtons.map((hole) => {
@@ -2298,6 +2353,9 @@ export default function App() {
                 {audioDiagRunning ? "Testing audio..." : "Run audio test"}
               </button>
             </div>
+            {manualPlaybackStatus.trim().length > 0 && (
+              <p className="math">{manualPlaybackStatus}</p>
+            )}
             {audioDiagReport.trim().length > 0 && (
               <pre className="audio-diag-report">{audioDiagReport}</pre>
             )}
