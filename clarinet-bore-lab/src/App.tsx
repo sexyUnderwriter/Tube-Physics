@@ -2,6 +2,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BoreSegment,
   Fingering,
+  HoleTriangulationSolution,
   ToneHole,
   diameterAtMm,
   midiToName,
@@ -14,6 +15,7 @@ import {
   spacingWarnings,
   speedOfSoundMs,
   totalBoreLengthMm,
+  triangulateHoleForTargetHz,
 } from "./model";
 
 type MouthpiecePreset = {
@@ -579,6 +581,14 @@ export default function App() {
   const [manualPlaying, setManualPlaying] = useState(false);
   const [manualOutputGain, setManualOutputGain] = useState(0.32);
   const [manualPlaybackStatus, setManualPlaybackStatus] = useState("");
+  const [solverOpenHoleId, setSolverOpenHoleId] = useState("");
+  const [solverTargetHz, setSolverTargetHz] = useState("440");
+  const [solverRegister, setSolverRegister] = useState<"fundamental" | "third">(
+    "fundamental"
+  );
+  const [solverStatus, setSolverStatus] = useState("");
+  const [solverSolution, setSolverSolution] =
+    useState<HoleTriangulationSolution | null>(null);
   const [audioDiagReport, setAudioDiagReport] = useState<string>("");
   const [audioDiagRunning, setAudioDiagRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -731,6 +741,90 @@ export default function App() {
     () => [...holes].sort((a, b) => b.zMm - a.zMm),
     [holes]
   );
+  const manualOpenHoleCandidates = useMemo(() => {
+    const registerHoleId = manualRegisterHoleId || detectedRegisterHoleId;
+    return holes
+      .filter((hole) => manualOpenById[hole.id] && hole.id !== registerHoleId)
+      .sort((a, b) => b.zMm - a.zMm);
+  }, [detectedRegisterHoleId, holes, manualOpenById, manualRegisterHoleId]);
+
+  useEffect(() => {
+    const stillValid = manualOpenHoleCandidates.some((hole) => hole.id === solverOpenHoleId);
+    if (!stillValid) {
+      setSolverOpenHoleId(manualOpenHoleCandidates[0]?.id ?? "");
+    }
+  }, [manualOpenHoleCandidates, solverOpenHoleId]);
+
+  const selectedSolverHole = useMemo(
+    () => holes.find((hole) => hole.id === solverOpenHoleId) ?? null,
+    [holes, solverOpenHoleId]
+  );
+  const selectedSolverHoleResult = useMemo(
+    () => results.find((result) => result.id === solverOpenHoleId) ?? null,
+    [results, solverOpenHoleId]
+  );
+
+  function runOpenHoleTriangulation(): void {
+    const targetHz = Number(solverTargetHz);
+    if (!Number.isFinite(targetHz) || targetHz <= 0) {
+      setSolverStatus("Enter a valid target frequency greater than 0 Hz.");
+      setSolverSolution(null);
+      return;
+    }
+
+    if (!solverOpenHoleId) {
+      setSolverStatus("Open at least one non-register hole, then select it for solving.");
+      setSolverSolution(null);
+      return;
+    }
+
+    const solution = triangulateHoleForTargetHz(
+      acousticSegments,
+      holes,
+      solverOpenHoleId,
+      targetHz,
+      tempC,
+      solverRegister
+    );
+
+    if (!solution) {
+      setSolverStatus("Solver could not compute a solution for the selected hole.");
+      setSolverSolution(null);
+      return;
+    }
+
+    setSolverSolution(solution);
+    setSolverStatus(
+      `${solution.holeLabel}: predicted ${solution.predictedHz.toFixed(2)} Hz (${solution.centsError.toFixed(
+        1
+      )} cents from target).`
+    );
+  }
+
+  function applyOpenHoleTriangulation(): void {
+    if (!solverSolution) {
+      return;
+    }
+
+    setHoles((prev) =>
+      prev.map((hole) =>
+        hole.id === solverSolution.holeId
+          ? {
+              ...hole,
+              zMm: Math.max(solverSolution.solvedZMm, 0),
+              diameterMm: Math.max(solverSolution.solvedDiameterMm, 0),
+            }
+          : hole
+      )
+    );
+
+    setSolverStatus(
+      `Applied to ${solverSolution.holeLabel}: z ${solverSolution.solvedZMm.toFixed(
+        2
+      )} mm, diameter ${solverSolution.solvedDiameterMm.toFixed(2)} mm.`
+    );
+  }
+
   const manualFingeringPreview = useMemo(() => {
     if (holes.length === 0) {
       return {
@@ -2393,9 +2487,94 @@ export default function App() {
                 </>
               )}
             </div>
+            <div className="hole-solver-card">
+              <h4>Open-Hole Target Solver</h4>
+              <p className="math">
+                Triangulate hole z-position and diameter for a user-selected open hole to reach a
+                target frequency.
+              </p>
+              <div className="settings-row">
+                <label>
+                  Selected open hole
+                  <select
+                    value={solverOpenHoleId}
+                    onChange={(e) => setSolverOpenHoleId(e.target.value)}
+                    disabled={manualOpenHoleCandidates.length === 0}
+                  >
+                    {manualOpenHoleCandidates.length === 0 ? (
+                      <option value="">No open non-register holes</option>
+                    ) : (
+                      manualOpenHoleCandidates.map((hole) => (
+                        <option key={hole.id} value={hole.id}>
+                          {hole.label} @ z {hole.zMm.toFixed(1)} mm
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
+                <label>
+                  Target Hz
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.01}
+                    value={solverTargetHz}
+                    onChange={(e) => setSolverTargetHz(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Register
+                  <select
+                    value={solverRegister}
+                    onChange={(e) =>
+                      setSolverRegister(e.target.value as "fundamental" | "third")
+                    }
+                  >
+                    <option value="fundamental">Fundamental (f1)</option>
+                    <option value="third">Third harmonic (f3)</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={runOpenHoleTriangulation}
+                  disabled={manualOpenHoleCandidates.length === 0}
+                >
+                  Solve geometry
+                </button>
+                <button
+                  type="button"
+                  className="sync-btn"
+                  onClick={applyOpenHoleTriangulation}
+                  disabled={solverSolution === null}
+                >
+                  Apply to hole
+                </button>
+              </div>
+              <div className="badge-row">
+                <span className="badge neutral">
+                  Current {solverRegister === "third" ? "f3" : "f1"}: {selectedSolverHoleResult
+                    ? solverRegister === "third"
+                      ? `${selectedSolverHoleResult.predictedThirdHz.toFixed(2)} Hz`
+                      : `${selectedSolverHoleResult.predictedFundamentalHz.toFixed(2)} Hz`
+                    : "N/A"}
+                </span>
+                <span className="badge neutral">
+                  Hole: {selectedSolverHole ? selectedSolverHole.label : "N/A"}
+                </span>
+                <span className="badge neutral">
+                  Suggested z: {solverSolution ? `${solverSolution.solvedZMm.toFixed(2)} mm` : "--"}
+                </span>
+                <span className="badge neutral">
+                  Suggested dia: {solverSolution
+                    ? `${solverSolution.solvedDiameterMm.toFixed(2)} mm`
+                    : "--"}
+                </span>
+              </div>
+            </div>
             {manualPlaybackStatus.trim().length > 0 && (
               <p className="math">{manualPlaybackStatus}</p>
             )}
+            {solverStatus.trim().length > 0 && <p className="math">{solverStatus}</p>}
             {SHOW_AUDIO_DIAGNOSTICS && audioDiagReport.trim().length > 0 && (
               <pre className="audio-diag-report">{audioDiagReport}</pre>
             )}

@@ -16,6 +16,7 @@ React + TypeScript UI for experimenting with clarinet bore geometry and evaluati
 - Evaluates full-scale intonation with configurable pass-band tolerance
 - Reports pass rate and mean absolute cents error across fingerings
 - Includes mouthpiece presets with published tip opening and facing values
+- Adds an open-hole triangulation solver to fit hole z-position and diameter for a target Hz
 
 ## Physics model (first-order)
 

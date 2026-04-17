@@ -57,6 +57,17 @@ export type FingeringEvaluation = {
   note: string;
 };
 
+export type HoleTriangulationSolution = {
+  holeId: string;
+  holeLabel: string;
+  register: "fundamental" | "third";
+  targetHz: number;
+  solvedZMm: number;
+  solvedDiameterMm: number;
+  predictedHz: number;
+  centsError: number;
+};
+
 const NOTE_NAMES = [
   "C",
   "C#",
@@ -292,6 +303,134 @@ function firstOpenBelowHole(
     return null;
   }
   return ordered[index - 1];
+}
+
+function predictedHoleRegisterHz(
+  segments: BoreSegment[],
+  hole: ToneHole,
+  cMs: number,
+  register: "fundamental" | "third"
+): number {
+  const fundamentalHz = fundamentalFromHoleTermination(segments, hole, cMs);
+  return register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
+}
+
+function targetScore(
+  predictedHz: number,
+  targetHz: number,
+  candidateZMm: number,
+  candidateDiameterMm: number,
+  anchorZMm: number,
+  anchorDiameterMm: number
+): number {
+  const cents = Math.abs(centsError(predictedHz, targetHz));
+  const zPenalty = Math.abs(candidateZMm - anchorZMm) * 0.05;
+  const diameterPenalty = Math.abs(candidateDiameterMm - anchorDiameterMm) * 1.8;
+  return cents + zPenalty + diameterPenalty;
+}
+
+export function triangulateHoleForTargetHz(
+  segments: BoreSegment[],
+  holes: ToneHole[],
+  holeId: string,
+  targetHz: number,
+  tempC: number,
+  register: "fundamental" | "third" = "fundamental"
+): HoleTriangulationSolution | null {
+  if (!Number.isFinite(targetHz) || targetHz <= 0) {
+    return null;
+  }
+
+  const cMs = speedOfSoundMs(tempC);
+  const sourceHole = findHoleById(holes, holeId);
+  if (!sourceHole) {
+    return null;
+  }
+
+  const totalLengthMm = totalBoreLengthMm(segments);
+  const zMin = 0.5;
+  const zMax = Math.max(totalLengthMm - 0.5, zMin + 1);
+
+  const initialZMin = clamp(sourceHole.zMm - 95, zMin, zMax);
+  const initialZMax = clamp(sourceHole.zMm + 95, zMin, zMax);
+  const initialDiaMin = Math.max(0.8, sourceHole.diameterMm - 4.5);
+  const initialDiaMax = Math.min(14, sourceHole.diameterMm + 4.5);
+
+  let best = {
+    zMm: sourceHole.zMm,
+    diameterMm: sourceHole.diameterMm,
+    predictedHz: predictedHoleRegisterHz(segments, sourceHole, cMs, register),
+    score: Number.POSITIVE_INFINITY,
+  };
+
+  const evaluateCandidate = (zMm: number, diameterMm: number): void => {
+    const candidate: ToneHole = {
+      ...sourceHole,
+      zMm: clamp(zMm, zMin, zMax),
+      diameterMm: clamp(diameterMm, 0.5, 16),
+    };
+    const predictedHz = predictedHoleRegisterHz(segments, candidate, cMs, register);
+    const score = targetScore(
+      predictedHz,
+      targetHz,
+      candidate.zMm,
+      candidate.diameterMm,
+      sourceHole.zMm,
+      sourceHole.diameterMm
+    );
+    if (score < best.score) {
+      best = {
+        zMm: candidate.zMm,
+        diameterMm: candidate.diameterMm,
+        predictedHz,
+        score,
+      };
+    }
+  };
+
+  let zLow = initialZMin;
+  let zHigh = initialZMax;
+  let diaLow = initialDiaMin;
+  let diaHigh = initialDiaMax;
+
+  const passes = [
+    { zSteps: 30, diaSteps: 24 },
+    { zSteps: 26, diaSteps: 22 },
+    { zSteps: 20, diaSteps: 18 },
+  ];
+
+  for (const pass of passes) {
+    const zDen = Math.max(pass.zSteps - 1, 1);
+    const diaDen = Math.max(pass.diaSteps - 1, 1);
+
+    for (let i = 0; i < pass.zSteps; i += 1) {
+      const z = zLow + ((zHigh - zLow) * i) / zDen;
+      for (let j = 0; j < pass.diaSteps; j += 1) {
+        const dia = diaLow + ((diaHigh - diaLow) * j) / diaDen;
+        evaluateCandidate(z, dia);
+      }
+    }
+
+    const zSpan = Math.max((zHigh - zLow) * 0.22, 3.5);
+    const diaSpan = Math.max((diaHigh - diaLow) * 0.22, 0.4);
+    zLow = clamp(best.zMm - zSpan, zMin, zMax);
+    zHigh = clamp(best.zMm + zSpan, zMin, zMax);
+    diaLow = Math.max(0.8, best.diameterMm - diaSpan);
+    diaHigh = Math.min(14, best.diameterMm + diaSpan);
+  }
+
+  const cents = centsError(best.predictedHz, targetHz);
+
+  return {
+    holeId: sourceHole.id,
+    holeLabel: sourceHole.label,
+    register,
+    targetHz,
+    solvedZMm: best.zMm,
+    solvedDiameterMm: best.diameterMm,
+    predictedHz: best.predictedHz,
+    centsError: cents,
+  };
 }
 
 export function evaluateToneHoles(

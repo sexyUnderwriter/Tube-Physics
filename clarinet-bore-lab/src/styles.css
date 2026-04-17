@@ -564,6 +564,18 @@ thead th {
   align-items: center;
 }
 
+.hole-solver-card {
+  margin-top: 0.72rem;
+  border: 1px dashed rgba(38, 102, 164, 0.32);
+  border-radius: 11px;
+  padding: 0.62rem;
+  background: rgba(244, 250, 255, 0.86);
+}
+
+.hole-solver-card h4 {
+  margin: 0 0 0.38rem;
+}
+
 .audio-diag-report {
   margin-top: 0.6rem;
   padding: 0.55rem 0.65rem;
