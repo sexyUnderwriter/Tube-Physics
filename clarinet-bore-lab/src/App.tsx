@@ -416,6 +416,10 @@ function normalizeHoleAngleDeg(angleDeg: number): number {
 
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
+// Keep diagnostics implementation in code, but hide it in normal workflow.
+// Set to true when troubleshooting host/browser audio-routing issues.
+const SHOW_AUDIO_DIAGNOSTICS = false;
+
 type DesignSnapshot = {
   version: 1;
   name: string;
@@ -1458,6 +1462,10 @@ export default function App() {
       }
 
       lines.push("PASS: Web Audio API available");
+      lines.push(`UA: ${navigator.userAgent}`);
+      lines.push(`Secure context: ${window.isSecureContext}`);
+      lines.push(`Page visibility: ${document.visibilityState}`);
+      lines.push(`Document has focus: ${document.hasFocus()}`);
 
       let ctx = manualAudioContextRef.current;
       if (!ctx || ctx.state === "closed") {
@@ -1469,6 +1477,12 @@ export default function App() {
 
       await ctx.resume();
       lines.push(`Context after resume(): ${ctx.state}`);
+      lines.push(`Context sampleRate: ${ctx.sampleRate}`);
+      lines.push(`Context baseLatency: ${ctx.baseLatency?.toFixed(5) ?? "N/A"}`);
+      lines.push(`Context outputLatency: ${ctx.outputLatency?.toFixed(5) ?? "N/A"}`);
+      lines.push(
+        `Destination channels: ${ctx.destination.channelCount} (mode=${ctx.destination.channelCountMode})`
+      );
       if (ctx.state !== "running") {
         lines.push("FAIL: AudioContext did not enter running state.");
         setAudioDiagReport(lines.join("\n"));
@@ -1514,9 +1528,15 @@ export default function App() {
         );
       } else {
         lines.push("PASS: Oscillator signal is active in the audio graph.");
+        lines.push("DIAGNOSIS: Synthesis path is healthy (oscillator -> gain -> destination). ");
         lines.push(
-          "If you still hear nothing, output is likely muted/routed elsewhere at browser or system level."
+          "If nothing is audible, the fault is downstream of the app DSP path: host/webview audio output policy, browser tab routing, or OS output path."
         );
+        if (/electron|vscode/i.test(navigator.userAgent)) {
+          lines.push(
+            "LIKELY CAUSE: Running inside an Electron/VS Code host can suppress or reroute webview audio. Test in a standalone browser window."
+          );
+        }
       }
 
       // Check manual chain state for immediate debugging context.
@@ -2345,18 +2365,30 @@ export default function App() {
               >
                 {manualPlaying ? "Stop" : "Play"}
               </button>
-              <button
-                type="button"
-                onClick={runAudioDiagnostics}
-                disabled={audioDiagRunning}
-              >
-                {audioDiagRunning ? "Testing audio..." : "Run audio test"}
-              </button>
+              {SHOW_AUDIO_DIAGNOSTICS && (
+                <>
+                  <button
+                    type="button"
+                    onClick={runAudioDiagnostics}
+                    disabled={audioDiagRunning}
+                  >
+                    {audioDiagRunning ? "Testing audio..." : "Run audio test"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(window.location.href, "_blank", "noopener,noreferrer")
+                    }
+                  >
+                    Open in external browser tab
+                  </button>
+                </>
+              )}
             </div>
             {manualPlaybackStatus.trim().length > 0 && (
               <p className="math">{manualPlaybackStatus}</p>
             )}
-            {audioDiagReport.trim().length > 0 && (
+            {SHOW_AUDIO_DIAGNOSTICS && audioDiagReport.trim().length > 0 && (
               <pre className="audio-diag-report">{audioDiagReport}</pre>
             )}
           </div>
