@@ -2148,11 +2148,19 @@ export default function App() {
         <section className="panel full-width">
           <h2>Tone Hole Physics Evaluation</h2>
           <p className="math">
-            Base relation: f = c / (4L_eff), with hole vent correction added to L_eff from bore and
-            chimney geometry.
+            Base relation: f = c / (4L_eff), with tone-hole branch correction added to L_eff from
+            bore and chimney geometry.
           </p>
           <p className="math">
             Note: Target cents and recommendation are evaluated against f1 (chalumeau).
+          </p>
+          <p className="math">
+            Terminology: tone hole = physical bore hole; register vent = register key hole; first
+            open hole = primary acoustic termination in first-open mode.
+          </p>
+          <p className="math">
+            Table assumption: each row's f1, f3, target cents, and recommendation are computed for
+            that specific hole acting as open termination.
           </p>
 
           <table>
@@ -2295,7 +2303,7 @@ export default function App() {
             </p>
             <div className="settings-row">
               <label>
-                Register key
+                Register vent key
                 <select
                   value={manualRegisterHoleId || detectedRegisterHoleId}
                   onChange={(e) => setManualRegisterHoleId(e.target.value)}
@@ -2398,7 +2406,7 @@ export default function App() {
               <tr>
                 <th>Name</th>
                 <th>Target</th>
-                <th>Vent hole</th>
+                <th>First open hole</th>
                 <th>Register</th>
                 <th>Termination</th>
                 <th>Predicted</th>
@@ -2471,7 +2479,7 @@ export default function App() {
                           )
                         }
                       >
-                        <option value="vent-hole">Vent hole</option>
+                        <option value="vent-hole">At first-open hole</option>
                         <option value="below-open-vent-closed">
                           Holes below open, vent closed
                         </option>

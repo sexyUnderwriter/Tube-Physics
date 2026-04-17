@@ -299,31 +299,8 @@ export function evaluateToneHoles(
   holes: ToneHole[],
   tempC: number,
   a4Hz = 440,
-  fingerings: Fingering[] = []
+  _fingerings: Fingering[] = []
 ): HoleEvaluation[] {
-  // Build per-hole usage context from fingerings.
-  // Prefer fundamental if present because hole.targetNote is a chalumeau target.
-  const usageMap = new Map<
-    string,
-    {
-      register: "fundamental" | "third";
-      termination: "vent-hole" | "below-open-vent-closed" | "bell";
-    }
-  >();
-  for (const hole of holes) {
-    const matches = fingerings.filter((f) => f.ventHoleId === hole.id);
-    if (matches.length === 0) {
-      continue;
-    }
-    const preferred =
-      matches.find((f) => f.register === "fundamental") ??
-      matches[0];
-    usageMap.set(hole.id, {
-      register: preferred.register,
-      termination: preferred.termination,
-    });
-  }
-
   const cMs = speedOfSoundMs(tempC);
 
   return [...holes]
@@ -338,22 +315,10 @@ export function evaluateToneHoles(
       const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
       const thirdHz = oddHarmonic(fundamentalHz, 2);
 
-      const usage = usageMap.get(hole.id);
-      const activeRegister = usage?.register ?? "fundamental";
-      const activeTermination = usage?.termination ?? "vent-hole";
-
-      let modelFundamentalHz = fundamentalHz;
-      if (activeTermination === "bell") {
-        modelFundamentalHz = fundamentalFromBellTermination(segments, cMs);
-      }
-      if (activeTermination === "below-open-vent-closed") {
-        const openBelow = firstOpenBelowHole(holes, hole.id);
-        modelFundamentalHz = openBelow
-          ? fundamentalFromHoleTermination(segments, openBelow, cMs)
-          : fundamentalFromBellTermination(segments, cMs);
-      }
-      const modelThirdHz = oddHarmonic(modelFundamentalHz, 2);
-      const predictedActiveHz = activeRegister === "third" ? modelThirdHz : modelFundamentalHz;
+      // Tone-hole table is always per-row-hole-open.
+      const activeRegister: "fundamental" = "fundamental";
+      const activeTermination: "vent-hole" = "vent-hole";
+      const predictedActiveHz = fundamentalHz;
 
       const nearestMidi = Math.round(hzToMidi(fundamentalHz, a4Hz));
       const nearestHz = midiToHz(nearestMidi, a4Hz);
@@ -361,10 +326,8 @@ export function evaluateToneHoles(
 
       const targetMidi = parseScientificPitch(hole.targetNote);
       const targetHz = targetMidi === null ? null : midiToHz(targetMidi, a4Hz);
-      // Compare target to f1 from the same termination model used by the hole's fingerings.
-      // hole.targetNote is still chalumeau, but bell-terminated notes must use bell model f1.
       const centsToTarget =
-        targetHz === null ? null : centsError(modelFundamentalHz, targetHz);
+        targetHz === null ? null : centsError(fundamentalHz, targetHz);
 
       return {
         id: hole.id,
@@ -464,7 +427,8 @@ export function evaluateFingerings(
       const openBelow = firstOpenBelowHole(holes, hole.id);
       if (openBelow) {
         soundingHole = openBelow;
-        resolvedVentHoleLabel = `${openBelow.label} (first open below)`;
+        resolvedVentHoleLabel =
+          `${openBelow.label} (first open below selected ${hole.label})`;
       } else {
         const bellFundamentalHz = fundamentalFromBellTermination(segments, cMs);
         const predictedHz =
