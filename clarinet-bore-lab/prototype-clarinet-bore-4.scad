@@ -2,8 +2,7 @@
 // Units: millimeters
 // Coordinate system: centerline arc-length s starts at bell and runs to mouthpiece.
 
-// Fast preview (F5) and higher-quality final render (F6).
-$fn = $preview ? 36 : 96;
+$fn = 96;
 
 // ----------------------
 // Core body dimensions
@@ -21,7 +20,7 @@ bend_arc_len_mm = PI * bend_radius_mm;
 bend_start_s_mm = bend_mid_s_mm - bend_arc_len_mm / 2;
 bend_end_s_mm = bend_mid_s_mm + bend_arc_len_mm / 2;
 
-path_sample_mm = $preview ? 18 : 8;
+path_sample_mm = 8;
 
 // Optional visual extension for the mouthpiece shank geometry from source data.
 show_mouthpiece_stub = false;
@@ -54,7 +53,6 @@ function v_norm(v) = sqrt(v_dot(v, v));
 function v_unit(v) =
   let(n = v_norm(v))
   n < 1e-9 ? [1, 0, 0] : [v[0] / n, v[1] / n, v[2] / n];
-function v_sub(a, b) = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
 function path_point(s_raw) =
   let(s = clampv(s_raw, 0, body_length_mm))
@@ -117,25 +115,14 @@ module orient_x_to(v) {
   }
 }
 
-module cylinder_between_points(p0, p1, d_mm) {
-  seg = v_sub(p1, p0);
-  len = v_norm(seg);
-  if (len > 1e-6) {
-    mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2];
-    translate(mid)
-      orient_x_to(seg)
-        // Small overlap avoids tiny CSG seams between adjacent segments.
-        cylinder(h = len + 0.05, d = d_mm, center = true);
-  }
-}
-
 module swept_tube(d_mm, s_start_mm, s_end_mm, ds_mm) {
   steps = max(1, ceil((s_end_mm - s_start_mm) / ds_mm));
-  union() {
-    for (i = [0 : steps - 1]) {
-      s0 = s_start_mm + (s_end_mm - s_start_mm) * (i / steps);
-      s1 = s_start_mm + (s_end_mm - s_start_mm) * ((i + 1) / steps);
-      cylinder_between_points(path_point(s0), path_point(s1), d_mm);
+  for (i = [0 : steps - 1]) {
+    s0 = s_start_mm + (s_end_mm - s_start_mm) * (i / steps);
+    s1 = s_start_mm + (s_end_mm - s_start_mm) * ((i + 1) / steps);
+    hull() {
+      translate(path_point(s0)) sphere(d = d_mm);
+      translate(path_point(s1)) sphere(d = d_mm);
     }
   }
 }
