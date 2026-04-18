@@ -378,13 +378,13 @@ thead th {
   fill: rgba(38, 102, 164, 0.19);
   stroke: #2666a4;
   stroke-width: 2;
+}
 
 .mouthpiece-shape {
   fill: rgba(90, 60, 30, 0.13);
   stroke: #7a5230;
   stroke-width: 1.5;
   stroke-dasharray: 5 3;
-}
 }
 
 .segment-divider {
@@ -574,6 +574,57 @@ thead th {
 
 .hole-solver-card h4 {
   margin: 0 0 0.38rem;
+}
+
+.cockpit-cell {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 132px;
+}
+
+.cockpit-cell span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.cockpit-meter {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(165, 39, 57, 0.14), rgba(34, 122, 67, 0.14));
+  border: 1px solid var(--line);
+}
+
+.cockpit-meter-zero {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  bottom: 1px;
+  width: 1px;
+  background: rgba(23, 25, 28, 0.45);
+}
+
+.cockpit-meter-marker {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #184d81;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.cockpit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  min-width: 190px;
+}
+
+.cockpit-actions button {
+  white-space: nowrap;
 }
 
 .audio-diag-report {

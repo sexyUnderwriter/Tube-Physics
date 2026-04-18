@@ -68,6 +68,33 @@ export type HoleTriangulationSolution = {
   centsError: number;
 };
 
+export type TuningSensitivityOptions = {
+  diameterStepMm?: number;
+  zStepMm?: number;
+  chimneyStepMm?: number;
+  maxSuggestedDiameterDeltaMm?: number;
+  maxSuggestedZDeltaMm?: number;
+  maxSuggestedChimneyDeltaMm?: number;
+  sensitivityFloor?: number;
+};
+
+export type FingeringTuningSensitivity = {
+  fingeringId: string;
+  fingeringLabel: string;
+  targetNote: string;
+  predictedHz: number | null;
+  centsErrorToTarget: number | null;
+  soundingHoleId: string | null;
+  soundingHoleLabel: string;
+  centsPerMmDiameter: number | null;
+  centsPerMmZ: number | null;
+  centsPerMmChimney: number | null;
+  suggestedDeltaDiameterMm: number | null;
+  suggestedDeltaZMm: number | null;
+  suggestedDeltaChimneyMm: number | null;
+  note: string;
+};
+
 const NOTE_NAMES = [
   "C",
   "C#",
@@ -303,6 +330,102 @@ function firstOpenBelowHole(
     return null;
   }
   return ordered[index - 1];
+}
+
+function resolveSoundingHoleForFingering(
+  holes: ToneHole[],
+  fingering: Fingering
+): ToneHole | null {
+  if (fingering.termination === "bell") {
+    return null;
+  }
+
+  const selected = findHoleById(holes, fingering.ventHoleId);
+  if (!selected) {
+    return null;
+  }
+
+  if (fingering.termination !== "below-open-vent-closed") {
+    return selected;
+  }
+
+  const openBelow = firstOpenBelowHole(holes, selected.id);
+  return openBelow ?? null;
+}
+
+function evaluateSingleFingering(
+  segments: BoreSegment[],
+  holes: ToneHole[],
+  fingering: Fingering,
+  tempC: number,
+  a4Hz: number
+): FingeringEvaluation {
+  const result = evaluateFingerings(
+    segments,
+    holes,
+    [fingering],
+    tempC,
+    10,
+    a4Hz
+  )[0];
+  return result;
+}
+
+function perturbHoleGeometry(
+  holes: ToneHole[],
+  holeId: string,
+  key: "diameterMm" | "zMm" | "chimneyMm",
+  deltaMm: number
+): ToneHole[] {
+  return holes.map((hole) => {
+    if (hole.id !== holeId) {
+      return hole;
+    }
+
+    const nextValue = Math.max(hole[key] + deltaMm, 0.01);
+    return {
+      ...hole,
+      [key]: nextValue,
+    };
+  });
+}
+
+function centralDifferenceSensitivity(
+  segments: BoreSegment[],
+  holes: ToneHole[],
+  fingering: Fingering,
+  holeId: string,
+  key: "diameterMm" | "zMm" | "chimneyMm",
+  stepMm: number,
+  tempC: number,
+  a4Hz: number
+): number | null {
+  const step = Math.max(stepMm, 0.001);
+  const plusHoles = perturbHoleGeometry(holes, holeId, key, step);
+  const minusHoles = perturbHoleGeometry(holes, holeId, key, -step);
+
+  const plus = evaluateSingleFingering(segments, plusHoles, fingering, tempC, a4Hz);
+  const minus = evaluateSingleFingering(segments, minusHoles, fingering, tempC, a4Hz);
+
+  if (plus.centsErrorToTarget === null || minus.centsErrorToTarget === null) {
+    return null;
+  }
+
+  return (plus.centsErrorToTarget - minus.centsErrorToTarget) / (2 * step);
+}
+
+function suggestedDeltaFromSensitivity(
+  centsErrorToTarget: number,
+  sensitivity: number | null,
+  maxAbsDeltaMm: number,
+  sensitivityFloor: number
+): number | null {
+  if (sensitivity === null || Math.abs(sensitivity) < sensitivityFloor) {
+    return null;
+  }
+
+  const raw = -centsErrorToTarget / sensitivity;
+  return clamp(raw, -Math.abs(maxAbsDeltaMm), Math.abs(maxAbsDeltaMm));
 }
 
 function predictedHoleRegisterHz(
@@ -652,6 +775,151 @@ export function evaluateFingerings(
             : "Flat",
     };
   });
+}
+
+export function evaluateFingeringTuningSensitivity(
+  segments: BoreSegment[],
+  holes: ToneHole[],
+  fingering: Fingering,
+  tempC: number,
+  a4Hz = 440,
+  options: TuningSensitivityOptions = {}
+): FingeringTuningSensitivity {
+  const diameterStepMm = Math.max(options.diameterStepMm ?? 0.1, 0.01);
+  const zStepMm = Math.max(options.zStepMm ?? 0.5, 0.01);
+  const chimneyStepMm = Math.max(options.chimneyStepMm ?? 0.1, 0.01);
+  const maxSuggestedDiameterDeltaMm = Math.max(options.maxSuggestedDiameterDeltaMm ?? 1.5, 0.01);
+  const maxSuggestedZDeltaMm = Math.max(options.maxSuggestedZDeltaMm ?? 12, 0.01);
+  const maxSuggestedChimneyDeltaMm = Math.max(options.maxSuggestedChimneyDeltaMm ?? 2.5, 0.01);
+  const sensitivityFloor = Math.max(options.sensitivityFloor ?? 1e-3, 1e-6);
+
+  const base = evaluateSingleFingering(segments, holes, fingering, tempC, a4Hz);
+  const soundingHole = resolveSoundingHoleForFingering(holes, fingering);
+
+  if (base.centsErrorToTarget === null) {
+    return {
+      fingeringId: fingering.id,
+      fingeringLabel: fingering.label,
+      targetNote: fingering.targetNote,
+      predictedHz: base.predictedHz,
+      centsErrorToTarget: null,
+      soundingHoleId: soundingHole?.id ?? null,
+      soundingHoleLabel: soundingHole?.label ?? "N/A",
+      centsPerMmDiameter: null,
+      centsPerMmZ: null,
+      centsPerMmChimney: null,
+      suggestedDeltaDiameterMm: null,
+      suggestedDeltaZMm: null,
+      suggestedDeltaChimneyMm: null,
+      note: "Target note format is invalid for sensitivity analysis.",
+    };
+  }
+
+  if (soundingHole === null) {
+    return {
+      fingeringId: fingering.id,
+      fingeringLabel: fingering.label,
+      targetNote: fingering.targetNote,
+      predictedHz: base.predictedHz,
+      centsErrorToTarget: base.centsErrorToTarget,
+      soundingHoleId: null,
+      soundingHoleLabel: "Bell termination",
+      centsPerMmDiameter: null,
+      centsPerMmZ: null,
+      centsPerMmChimney: null,
+      suggestedDeltaDiameterMm: null,
+      suggestedDeltaZMm: null,
+      suggestedDeltaChimneyMm: null,
+      note: "Bell termination does not map to a single adjustable hole.",
+    };
+  }
+
+  const centsPerMmDiameter = centralDifferenceSensitivity(
+    segments,
+    holes,
+    fingering,
+    soundingHole.id,
+    "diameterMm",
+    diameterStepMm,
+    tempC,
+    a4Hz
+  );
+  const centsPerMmZ = centralDifferenceSensitivity(
+    segments,
+    holes,
+    fingering,
+    soundingHole.id,
+    "zMm",
+    zStepMm,
+    tempC,
+    a4Hz
+  );
+  const centsPerMmChimney = centralDifferenceSensitivity(
+    segments,
+    holes,
+    fingering,
+    soundingHole.id,
+    "chimneyMm",
+    chimneyStepMm,
+    tempC,
+    a4Hz
+  );
+
+  const suggestedDeltaDiameterMm = suggestedDeltaFromSensitivity(
+    base.centsErrorToTarget,
+    centsPerMmDiameter,
+    maxSuggestedDiameterDeltaMm,
+    sensitivityFloor
+  );
+  const suggestedDeltaZMm = suggestedDeltaFromSensitivity(
+    base.centsErrorToTarget,
+    centsPerMmZ,
+    maxSuggestedZDeltaMm,
+    sensitivityFloor
+  );
+  const suggestedDeltaChimneyMm = suggestedDeltaFromSensitivity(
+    base.centsErrorToTarget,
+    centsPerMmChimney,
+    maxSuggestedChimneyDeltaMm,
+    sensitivityFloor
+  );
+
+  return {
+    fingeringId: fingering.id,
+    fingeringLabel: fingering.label,
+    targetNote: fingering.targetNote,
+    predictedHz: base.predictedHz,
+    centsErrorToTarget: base.centsErrorToTarget,
+    soundingHoleId: soundingHole.id,
+    soundingHoleLabel: soundingHole.label,
+    centsPerMmDiameter,
+    centsPerMmZ,
+    centsPerMmChimney,
+    suggestedDeltaDiameterMm,
+    suggestedDeltaZMm,
+    suggestedDeltaChimneyMm,
+    note: "Computed via local finite differences around current geometry.",
+  };
+}
+
+export function evaluateFingeringTuningSensitivities(
+  segments: BoreSegment[],
+  holes: ToneHole[],
+  fingerings: Fingering[],
+  tempC: number,
+  a4Hz = 440,
+  options: TuningSensitivityOptions = {}
+): FingeringTuningSensitivity[] {
+  return fingerings.map((fingering) =>
+    evaluateFingeringTuningSensitivity(
+      segments,
+      holes,
+      fingering,
+      tempC,
+      a4Hz,
+      options
+    )
+  );
 }
 
 export function spacingWarnings(

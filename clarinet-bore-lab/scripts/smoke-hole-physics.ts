@@ -1,4 +1,5 @@
 import {
+  evaluateFingeringTuningSensitivity,
   evaluateFingerings,
   evaluateToneHoles,
   spacingWarnings,
@@ -69,12 +70,16 @@ const checks: Check[] = [];
 const holeEval = evaluateToneHoles(segments, holes, 20, 415, fingerings);
 const fingEval = evaluateFingerings(segments, holes, fingerings, 20, 10, 415);
 
-// 1) Tone-hole and fingering cents must agree in sign for same target/termination context.
+// 1) Tone-hole and fingering cents sign checks only apply when both represent
+// the same acoustic context: open-hole termination in the fundamental register.
 for (const f of fingEval) {
   if (f.centsErrorToTarget === null) {
     continue;
   }
   const original = fingerings.find((item) => item.id === f.id);
+  if (!original || original.termination !== "vent-hole" || original.register !== "fundamental") {
+    continue;
+  }
   const h = original ? holeEval.find((e) => e.id === original.ventHoleId) : undefined;
   if (!h || h.centsErrorToTarget === null) {
     continue;
@@ -112,6 +117,37 @@ checks.push(
     "Vent-hole chimney increase flattens",
     (holeTaller.predictedHz ?? 0) < (holeBase.predictedHz ?? 0),
     `base=${holeBase.predictedHz?.toFixed(2)}Hz, taller=${holeTaller.predictedHz?.toFixed(2)}Hz`
+  )
+);
+
+// 3b) Local sensitivities should match observed directionality for vent-hole mode.
+const ventSensitivity = evaluateFingeringTuningSensitivity(
+  segments,
+  holes,
+  ventBase[0],
+  20,
+  415
+);
+checks.push(
+  runCheck(
+    "Sensitivity z derivative is positive",
+    (ventSensitivity.centsPerMmZ ?? 0) > 0,
+    `dcents/dz=${ventSensitivity.centsPerMmZ?.toFixed(3) ?? "N/A"} c/mm`
+  )
+);
+checks.push(
+  runCheck(
+    "Sensitivity chimney derivative is negative",
+    (ventSensitivity.centsPerMmChimney ?? 0) < 0,
+    `dcents/dchimney=${ventSensitivity.centsPerMmChimney?.toFixed(3) ?? "N/A"} c/mm`
+  )
+);
+checks.push(
+  runCheck(
+    "Sensitivity suggests usable deltas",
+    ventSensitivity.suggestedDeltaZMm !== null &&
+      ventSensitivity.suggestedDeltaChimneyMm !== null,
+    `dz=${ventSensitivity.suggestedDeltaZMm?.toFixed(3) ?? "N/A"}mm, dchimney=${ventSensitivity.suggestedDeltaChimneyMm?.toFixed(3) ?? "N/A"}mm`
   )
 );
 

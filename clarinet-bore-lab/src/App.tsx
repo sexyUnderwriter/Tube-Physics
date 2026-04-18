@@ -2,9 +2,11 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BoreSegment,
   Fingering,
+  FingeringTuningSensitivity,
   HoleTriangulationSolution,
   ToneHole,
   diameterAtMm,
+  evaluateFingeringTuningSensitivities,
   midiToName,
   modelConfidenceWarnings,
   parseScientificPitch,
@@ -416,6 +418,27 @@ function normalizeHoleAngleDeg(angleDeg: number): number {
   return ((angleDeg + 180) % 360 + 360) % 360 - 180;
 }
 
+function formatSignedValue(value: number | null, unit: string, decimals = 2): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "N/A";
+  }
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(decimals)} ${unit}`;
+}
+
+function meterPercent(value: number | null, maxAbs: number): number | null {
+  if (value === null || !Number.isFinite(value) || maxAbs <= 0) {
+    return null;
+  }
+  const normalized = (value / maxAbs + 1) * 50;
+  return Math.max(0, Math.min(normalized, 100));
+}
+
+function clampSignedDelta(value: number, maxAbs: number): number {
+  const limit = Math.max(Math.abs(maxAbs), 0);
+  return Math.max(-limit, Math.min(limit, value));
+}
+
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 
 // Keep diagnostics implementation in code, but hide it in normal workflow.
@@ -736,6 +759,17 @@ export default function App() {
         pitchStandardHz
       ),
     [acousticSegments, holes, fingerings, tempC, toleranceCents, pitchStandardHz]
+  );
+  const tuningCockpitRows = useMemo<FingeringTuningSensitivity[]>(
+    () =>
+      evaluateFingeringTuningSensitivities(
+        acousticSegments,
+        holes,
+        fingerings,
+        tempC,
+        pitchStandardHz
+      ),
+    [acousticSegments, holes, fingerings, tempC, pitchStandardHz]
   );
   const manualHoleButtons = useMemo(
     () => [...holes].sort((a, b) => b.zMm - a.zMm),
@@ -1369,6 +1403,69 @@ export default function App() {
     setHoles((prev) =>
       prev.map((h) => (h.id === id ? { ...h, [key]: normalizedValue as never } : h))
     );
+  }
+
+  function applySuggestedDeltaToHole(
+    row: FingeringTuningSensitivity,
+    key: "diameterMm" | "zMm" | "chimneyMm",
+    deltaMm: number | null,
+    maxAbsDeltaMm: number
+  ): void {
+    if (!row.soundingHoleId || deltaMm === null || !Number.isFinite(deltaMm)) {
+      return;
+    }
+
+    const safeDelta = clampSignedDelta(deltaMm, maxAbsDeltaMm);
+    setHoles((prev) =>
+      prev.map((hole) => {
+        if (hole.id !== row.soundingHoleId) {
+          return hole;
+        }
+        return {
+          ...hole,
+          [key]: Math.max(hole[key] + safeDelta, 0.01),
+        };
+      })
+    );
+  }
+
+  function applyBestSuggestedDelta(row: FingeringTuningSensitivity): void {
+    type DeltaCandidate = {
+      key: "diameterMm" | "zMm" | "chimneyMm";
+      deltaMm: number | null;
+      maxAbs: number;
+    };
+
+    const candidates = [
+      {
+        key: "diameterMm" as const,
+        deltaMm: row.suggestedDeltaDiameterMm,
+        maxAbs: 1.5,
+      },
+      {
+        key: "zMm" as const,
+        deltaMm: row.suggestedDeltaZMm,
+        maxAbs: 12,
+      },
+      {
+        key: "chimneyMm" as const,
+        deltaMm: row.suggestedDeltaChimneyMm,
+        maxAbs: 2.5,
+      },
+    ].filter(
+      (candidate): candidate is DeltaCandidate =>
+        candidate.deltaMm !== null && Number.isFinite(candidate.deltaMm)
+    );
+
+    if (candidates.length === 0) {
+      return;
+    }
+
+    candidates.sort(
+      (a, b) => Math.abs(a.deltaMm as number) - Math.abs(b.deltaMm as number)
+    );
+    const best = candidates[0];
+    applySuggestedDeltaToHole(row, best.key, best.deltaMm, best.maxAbs);
   }
 
   function updateFingering(
@@ -2735,6 +2832,173 @@ export default function App() {
                       >
                         Remove
                       </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="panel full-width">
+          <div className="panel-head">
+            <h2>Note Tuning Cockpit</h2>
+          </div>
+          <p className="math">
+            Per-note local sensitivities and suggested geometry deltas from the current model.
+            Positive/negative recommendations indicate direction to reduce target cents error.
+          </p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Fingering</th>
+                <th>Target</th>
+                <th>Sounding hole</th>
+                <th>Error</th>
+                <th>dC/dDia</th>
+                <th>dC/dz</th>
+                <th>dC/dChimney</th>
+                <th>Suggested ΔDia</th>
+                <th>Suggested Δz</th>
+                <th>Suggested ΔChimney</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tuningCockpitRows.map((row) => {
+                const centsClass =
+                  row.centsErrorToTarget === null
+                    ? "neutral"
+                    : Math.abs(row.centsErrorToTarget) <= toleranceCents
+                      ? "good"
+                      : "warn";
+
+                const diaPos = meterPercent(row.suggestedDeltaDiameterMm, 1.5);
+                const zPos = meterPercent(row.suggestedDeltaZMm, 12);
+                const chimPos = meterPercent(row.suggestedDeltaChimneyMm, 2.5);
+
+                return (
+                  <tr key={row.fingeringId}>
+                    <td>{row.fingeringLabel}</td>
+                    <td>{row.targetNote}</td>
+                    <td>{row.soundingHoleLabel}</td>
+                    <td>
+                      <span className={`badge ${centsClass}`}>
+                        {row.centsErrorToTarget === null
+                          ? "N/A"
+                          : `${row.centsErrorToTarget.toFixed(1)} cents`}
+                      </span>
+                    </td>
+                    <td>{formatSignedValue(row.centsPerMmDiameter, "c/mm", 2)}</td>
+                    <td>{formatSignedValue(row.centsPerMmZ, "c/mm", 2)}</td>
+                    <td>{formatSignedValue(row.centsPerMmChimney, "c/mm", 2)}</td>
+                    <td>
+                      <div className="cockpit-cell">
+                        <div className="cockpit-meter">
+                          <span className="cockpit-meter-zero" />
+                          {diaPos !== null && (
+                            <span
+                              className="cockpit-meter-marker"
+                              style={{ left: `${diaPos}%` }}
+                            />
+                          )}
+                        </div>
+                        <span>{formatSignedValue(row.suggestedDeltaDiameterMm, "mm", 3)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cockpit-cell">
+                        <div className="cockpit-meter">
+                          <span className="cockpit-meter-zero" />
+                          {zPos !== null && (
+                            <span
+                              className="cockpit-meter-marker"
+                              style={{ left: `${zPos}%` }}
+                            />
+                          )}
+                        </div>
+                        <span>{formatSignedValue(row.suggestedDeltaZMm, "mm", 3)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cockpit-cell">
+                        <div className="cockpit-meter">
+                          <span className="cockpit-meter-zero" />
+                          {chimPos !== null && (
+                            <span
+                              className="cockpit-meter-marker"
+                              style={{ left: `${chimPos}%` }}
+                            />
+                          )}
+                        </div>
+                        <span>{formatSignedValue(row.suggestedDeltaChimneyMm, "mm", 3)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cockpit-actions">
+                        <button
+                          type="button"
+                          className="sync-btn"
+                          onClick={() =>
+                            applySuggestedDeltaToHole(
+                              row,
+                              "diameterMm",
+                              row.suggestedDeltaDiameterMm,
+                              1.5
+                            )
+                          }
+                          disabled={
+                            row.soundingHoleId === null || row.suggestedDeltaDiameterMm === null
+                          }
+                        >
+                          Apply Dia
+                        </button>
+                        <button
+                          type="button"
+                          className="sync-btn"
+                          onClick={() =>
+                            applySuggestedDeltaToHole(
+                              row,
+                              "zMm",
+                              row.suggestedDeltaZMm,
+                              12
+                            )
+                          }
+                          disabled={row.soundingHoleId === null || row.suggestedDeltaZMm === null}
+                        >
+                          Apply z
+                        </button>
+                        <button
+                          type="button"
+                          className="sync-btn"
+                          onClick={() =>
+                            applySuggestedDeltaToHole(
+                              row,
+                              "chimneyMm",
+                              row.suggestedDeltaChimneyMm,
+                              2.5
+                            )
+                          }
+                          disabled={
+                            row.soundingHoleId === null || row.suggestedDeltaChimneyMm === null
+                          }
+                        >
+                          Apply Chimney
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyBestSuggestedDelta(row)}
+                          disabled={
+                            row.soundingHoleId === null ||
+                            (row.suggestedDeltaDiameterMm === null &&
+                              row.suggestedDeltaZMm === null &&
+                              row.suggestedDeltaChimneyMm === null)
+                          }
+                        >
+                          Apply Best
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
