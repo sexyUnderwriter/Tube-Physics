@@ -213,6 +213,11 @@ function frequencyFromQuarterWave(lengthMm: number, cMs: number): number {
   return cMs / (4 * lengthM);
 }
 
+function lengthFromQuarterWave(frequencyHz: number, cMs: number): number {
+  const hz = Math.max(frequencyHz, 0.001);
+  return (cMs / (4 * hz)) * 1000;
+}
+
 function oddHarmonic(fundamentalHz: number, harmonicIndex: number): number {
   const n = 2 * harmonicIndex - 1;
   return fundamentalHz * n;
@@ -224,6 +229,14 @@ function hzToMidi(freq: number, a4Hz: number): number {
 
 function midiToHz(midi: number, a4Hz: number): number {
   return a4Hz * Math.pow(2, (midi - 69) / 12);
+}
+
+export function scientificPitchToHz(note: string, a4Hz = 440): number | null {
+  const midi = parseScientificPitch(note);
+  if (midi === null) {
+    return null;
+  }
+  return midiToHz(midi, a4Hz);
 }
 
 export function midiToName(midi: number): string {
@@ -307,6 +320,26 @@ function findHoleById(holes: ToneHole[], id: string): ToneHole | null {
 
 function fundamentalFromBellTermination(segments: BoreSegment[], cMs: number): number {
   return frequencyFromQuarterWave(Math.max(totalBoreLengthMm(segments), 0.1), cMs);
+}
+
+export function predictClosedTubeFundamentalHz(
+  segments: BoreSegment[],
+  tempC: number
+): number {
+  const cMs = speedOfSoundMs(tempC);
+  return fundamentalFromBellTermination(segments, cMs);
+}
+
+export function requiredClosedTubeAcousticLengthMm(
+  targetFundamentalHz: number,
+  tempC: number
+): number | null {
+  if (!Number.isFinite(targetFundamentalHz) || targetFundamentalHz <= 0) {
+    return null;
+  }
+
+  const cMs = speedOfSoundMs(tempC);
+  return lengthFromQuarterWave(targetFundamentalHz, cMs);
 }
 
 function fundamentalFromHoleTermination(

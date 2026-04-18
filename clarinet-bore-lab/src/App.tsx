@@ -9,8 +9,11 @@ import {
   evaluateFingeringTuningSensitivities,
   midiToName,
   modelConfidenceWarnings,
+  predictClosedTubeFundamentalHz,
   parseScientificPitch,
+  requiredClosedTubeAcousticLengthMm,
   sampleBoreProfile,
+  scientificPitchToHz,
   evaluateFingerings,
   evaluateToneHoles,
   outerDiameterAtMm,
@@ -584,6 +587,10 @@ export default function App() {
   const [name, setName] = useState("Prototype Clarinet Bore");
   const [tempC, setTempC] = useState(20);
   const [pitchStandardHz, setPitchStandardHz] = useState(440);
+  const [buildTargetMode, setBuildTargetMode] = useState<"note" | "hz">("note");
+  const [buildTargetFundamentalNote, setBuildTargetFundamentalNote] = useState("C3");
+  const [buildTargetFundamentalHzInput, setBuildTargetFundamentalHzInput] =
+    useState("130.81");
   const [segments, setSegments] = useState<BoreSegment[]>(initialSegments);
   const [holes, setHoles] = useState<ToneHole[]>(initialHoles);
   const [toleranceCents, setToleranceCents] = useState(10);
@@ -736,6 +743,55 @@ export default function App() {
     [bodyLengthMm, mouthpiece.insertMm, mouthpiece.overallLengthMm]
   );
   const cMs = useMemo(() => speedOfSoundMs(tempC), [tempC]);
+  const buildTargetFundamentalHz = useMemo(() => {
+    if (buildTargetMode === "note") {
+      return scientificPitchToHz(buildTargetFundamentalNote, pitchStandardHz);
+    }
+
+    const hz = Number(buildTargetFundamentalHzInput);
+    if (!Number.isFinite(hz) || hz <= 0) {
+      return null;
+    }
+    return hz;
+  }, [
+    buildTargetMode,
+    buildTargetFundamentalHzInput,
+    buildTargetFundamentalNote,
+    pitchStandardHz,
+  ]);
+  const requiredAcousticLengthForTargetMm = useMemo(
+    () =>
+      buildTargetFundamentalHz === null
+        ? null
+        : requiredClosedTubeAcousticLengthMm(buildTargetFundamentalHz, tempC),
+    [buildTargetFundamentalHz, tempC]
+  );
+  const requiredBodyLengthForTargetMm = useMemo(() => {
+    if (requiredAcousticLengthForTargetMm === null) {
+      return null;
+    }
+    return Math.max(requiredAcousticLengthForTargetMm - Math.max(mouthpiece.insertMm, 0), 0);
+  }, [mouthpiece.insertMm, requiredAcousticLengthForTargetMm]);
+  const requiredPhysicalLengthForTargetMm = useMemo(() => {
+    if (requiredBodyLengthForTargetMm === null) {
+      return null;
+    }
+    return (
+      requiredBodyLengthForTargetMm +
+      Math.max(mouthpiece.insertMm, 0) +
+      Math.max(mouthpiece.overallLengthMm, 0)
+    );
+  }, [mouthpiece.insertMm, mouthpiece.overallLengthMm, requiredBodyLengthForTargetMm]);
+  const currentAllClosedFundamentalHz = useMemo(
+    () => predictClosedTubeFundamentalHz(acousticSegments, tempC),
+    [acousticSegments, tempC]
+  );
+  const currentAllClosedFundamentalCentsError = useMemo(() => {
+    if (buildTargetFundamentalHz === null || currentAllClosedFundamentalHz <= 0) {
+      return null;
+    }
+    return 1200 * Math.log2(currentAllClosedFundamentalHz / buildTargetFundamentalHz);
+  }, [buildTargetFundamentalHz, currentAllClosedFundamentalHz]);
   const results = useMemo(
     () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings),
     [acousticSegments, holes, tempC, pitchStandardHz, fingerings]
@@ -1853,6 +1909,105 @@ export default function App() {
                   {aboveBestFit === null
                     ? ""
                     : `${formatDrillFamily(aboveBestFit)} · ${inchesToMm(aboveBestFit.diameterIn).toFixed(3)} mm`}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="quick-calc" aria-label="Required length for all-closed target fundamental">
+            <h3>All-Closed Build Length Solver</h3>
+            <div className="quick-calc-row">
+              <label>
+                Target mode
+                <select
+                  value={buildTargetMode}
+                  onChange={(e) => setBuildTargetMode(e.target.value as "note" | "hz")}
+                >
+                  <option value="note">Scientific note</option>
+                  <option value="hz">Direct Hz</option>
+                </select>
+              </label>
+              <div className="quick-calc-readout">
+                <span>Target frequency</span>
+                <strong>
+                  {buildTargetFundamentalHz === null
+                    ? "--"
+                    : `${buildTargetFundamentalHz.toFixed(2)} Hz`}
+                </strong>
+              </div>
+            </div>
+            <div className="quick-calc-row">
+              {buildTargetMode === "note" ? (
+                <label>
+                  Target fundamental (all holes closed)
+                  <select
+                    value={buildTargetFundamentalNote}
+                    onChange={(e) => setBuildTargetFundamentalNote(e.target.value)}
+                  >
+                    {noteOptions.map((note) => (
+                      <option key={note} value={note}>
+                        {note}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  Target frequency (Hz)
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    value={buildTargetFundamentalHzInput}
+                    onChange={(e) => setBuildTargetFundamentalHzInput(e.target.value)}
+                  />
+                </label>
+              )}
+              <div className="quick-calc-readout">
+                <span>Target source</span>
+                <strong>
+                  {buildTargetMode === "note"
+                    ? `${buildTargetFundamentalNote} @ A=${pitchStandardHz.toFixed(1)}`
+                    : "Direct Hz input"}
+                </strong>
+              </div>
+            </div>
+            <div className="quick-calc-grid">
+              <div>
+                <span>Required acoustic length</span>
+                <strong>
+                  {requiredAcousticLengthForTargetMm === null
+                    ? "--"
+                    : `${requiredAcousticLengthForTargetMm.toFixed(1)} mm`}
+                </strong>
+                <span>Quarter-wave estimate at current temperature</span>
+              </div>
+              <div>
+                <span>Required body length</span>
+                <strong>
+                  {requiredBodyLengthForTargetMm === null
+                    ? "--"
+                    : `${requiredBodyLengthForTargetMm.toFixed(1)} mm`}
+                </strong>
+                <span>Subtracts mouthpiece acoustic insert ({mouthpiece.insertMm.toFixed(1)} mm)</span>
+              </div>
+              <div>
+                <span>Estimated total physical length</span>
+                <strong>
+                  {requiredPhysicalLengthForTargetMm === null
+                    ? "--"
+                    : `${requiredPhysicalLengthForTargetMm.toFixed(1)} mm`}
+                </strong>
+                <span>Body + insert + full mouthpiece length</span>
+              </div>
+              <div>
+                <span>Current all-closed prediction</span>
+                <strong>{currentAllClosedFundamentalHz.toFixed(2)} Hz</strong>
+                <span>
+                  {currentAllClosedFundamentalCentsError === null
+                    ? "Enter a valid target frequency"
+                    : `${currentAllClosedFundamentalCentsError > 0 ? "+" : ""}${currentAllClosedFundamentalCentsError.toFixed(
+                        1
+                      )} cents vs target`}
                 </span>
               </div>
             </div>
