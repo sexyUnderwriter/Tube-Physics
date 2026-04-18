@@ -443,6 +443,7 @@ function clampSignedDelta(value: number, maxAbs: number): number {
 }
 
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
+const MANUAL_REGISTER_NONE = "__none__";
 
 // Keep diagnostics implementation in code, but hide it in normal workflow.
 // Set to true when troubleshooting host/browser audio-routing issues.
@@ -651,6 +652,10 @@ export default function App() {
   }, [holes]);
 
   useEffect(() => {
+    if (manualRegisterHoleId === MANUAL_REGISTER_NONE) {
+      return;
+    }
+
     const hasSelectedRegister = holes.some((hole) => hole.id === manualRegisterHoleId);
     if (!hasSelectedRegister) {
       setManualRegisterHoleId(detectedRegisterHoleId);
@@ -827,12 +832,19 @@ export default function App() {
       ),
     [acousticSegments, holes, fingerings, tempC, pitchStandardHz]
   );
+  const toneHolesAscendingFromBell = useMemo(
+    () => [...holes].sort((a, b) => a.zMm - b.zMm),
+    [holes]
+  );
   const manualHoleButtons = useMemo(
     () => [...holes].sort((a, b) => b.zMm - a.zMm),
     [holes]
   );
   const manualOpenHoleCandidates = useMemo(() => {
-    const registerHoleId = manualRegisterHoleId || detectedRegisterHoleId;
+    const registerHoleId =
+      manualRegisterHoleId === MANUAL_REGISTER_NONE
+        ? ""
+        : manualRegisterHoleId || detectedRegisterHoleId;
     return holes
       .filter((hole) => manualOpenById[hole.id] && hole.id !== registerHoleId)
       .sort((a, b) => b.zMm - a.zMm);
@@ -926,7 +938,10 @@ export default function App() {
       };
     }
 
-    const registerHoleId = manualRegisterHoleId || detectedRegisterHoleId;
+    const registerHoleId =
+      manualRegisterHoleId === MANUAL_REGISTER_NONE
+        ? ""
+        : manualRegisterHoleId || detectedRegisterHoleId;
     const registerHole = holes.find((hole) => hole.id === registerHoleId) ?? null;
     const registerOpen = registerHole ? Boolean(manualOpenById[registerHole.id]) : false;
 
@@ -961,7 +976,7 @@ export default function App() {
         : `${soundingHole.label} (first open from mouthpiece)`;
     const registerLabel = registerHole
       ? `${registerHole.label}: ${registerOpen ? "Open (clarion)" : "Closed (chalumeau)"}`
-      : "No register key selected";
+      : "None selected: fundamental only";
 
     return {
       predictedHz: preview?.predictedHz ?? null,
@@ -1459,6 +1474,10 @@ export default function App() {
     setHoles((prev) =>
       prev.map((h) => (h.id === id ? { ...h, [key]: normalizedValue as never } : h))
     );
+  }
+
+  function sortToneHolesAscendingFromBell(): void {
+    setHoles((prev) => [...prev].sort((a, b) => a.zMm - b.zMm));
   }
 
   function applySuggestedDeltaToHole(
@@ -2256,25 +2275,34 @@ export default function App() {
         <section className="panel">
           <div className="panel-head">
             <h2>Tone Holes</h2>
-            <button
-              type="button"
-              onClick={() =>
-                setHoles((prev) => [
-                  ...prev,
-                  {
-                    id: makeId("hole"),
-                    label: `H${prev.length + 1}`,
-                    zMm: Math.max(180, prev.length * 36 + 180),
-                    angleDeg: 0,
-                    diameterMm: 7,
-                    chimneyMm: 3,
-                    targetNote: "",
-                  },
-                ])
-              }
-            >
-              Add hole
-            </button>
+            <div className="badge-row">
+              <button
+                type="button"
+                onClick={sortToneHolesAscendingFromBell}
+                disabled={holes.length < 2}
+              >
+                Sort bell → mouthpiece
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setHoles((prev) => [
+                    ...prev,
+                    {
+                      id: makeId("hole"),
+                      label: `H${prev.length + 1}`,
+                      zMm: Math.max(180, prev.length * 36 + 180),
+                      angleDeg: 0,
+                      diameterMm: 7,
+                      chimneyMm: 3,
+                      targetNote: "",
+                    },
+                  ])
+                }
+              >
+                Add hole
+              </button>
+            </div>
           </div>
 
           <p className="math">
@@ -2300,7 +2328,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {holes.map((hole) => (
+              {toneHolesAscendingFromBell.map((hole) => (
                 <tr key={hole.id}>
                   <td>
                     <input
@@ -2688,9 +2716,14 @@ export default function App() {
               <label>
                 Register vent key
                 <select
-                  value={manualRegisterHoleId || detectedRegisterHoleId}
+                  value={
+                    manualRegisterHoleId === MANUAL_REGISTER_NONE
+                      ? MANUAL_REGISTER_NONE
+                      : manualRegisterHoleId || detectedRegisterHoleId
+                  }
                   onChange={(e) => setManualRegisterHoleId(e.target.value)}
                 >
+                  <option value={MANUAL_REGISTER_NONE}>None (fundamental only)</option>
                   {holes.map((hole) => (
                     <option key={hole.id} value={hole.id}>
                       {hole.label}
@@ -2714,6 +2747,7 @@ export default function App() {
               {manualHoleButtons.map((hole) => {
                 const isOpen = manualOpenById[hole.id] ?? false;
                 const isRegisterHole =
+                  manualRegisterHoleId !== MANUAL_REGISTER_NONE &&
                   hole.id === (manualRegisterHoleId || detectedRegisterHoleId);
                 return (
                   <button
