@@ -81,6 +81,7 @@ export type TuningSensitivityOptions = {
 export type FingeringTuningSensitivity = {
   fingeringId: string;
   fingeringLabel: string;
+  register: "fundamental" | "third";
   targetNote: string;
   predictedHz: number | null;
   centsErrorToTarget: number | null;
@@ -833,6 +834,7 @@ export function evaluateFingeringTuningSensitivity(
     return {
       fingeringId: fingering.id,
       fingeringLabel: fingering.label,
+      register: fingering.register,
       targetNote: fingering.targetNote,
       predictedHz: base.predictedHz,
       centsErrorToTarget: null,
@@ -852,6 +854,7 @@ export function evaluateFingeringTuningSensitivity(
     return {
       fingeringId: fingering.id,
       fingeringLabel: fingering.label,
+      register: fingering.register,
       targetNote: fingering.targetNote,
       predictedHz: base.predictedHz,
       centsErrorToTarget: base.centsErrorToTarget,
@@ -920,6 +923,7 @@ export function evaluateFingeringTuningSensitivity(
   return {
     fingeringId: fingering.id,
     fingeringLabel: fingering.label,
+    register: fingering.register,
     targetNote: fingering.targetNote,
     predictedHz: base.predictedHz,
     centsErrorToTarget: base.centsErrorToTarget,

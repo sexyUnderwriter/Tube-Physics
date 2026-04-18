@@ -444,6 +444,7 @@ function clampSignedDelta(value: number, maxAbs: number): number {
 
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 const MANUAL_REGISTER_NONE = "__none__";
+type CockpitRegisterFilter = "all" | "chalumeau" | "clarion";
 
 // Keep diagnostics implementation in code, but hide it in normal workflow.
 // Set to true when troubleshooting host/browser audio-routing issues.
@@ -617,6 +618,8 @@ export default function App() {
   const [solverRegister, setSolverRegister] = useState<"fundamental" | "third">(
     "fundamental"
   );
+  const [cockpitRegisterFilter, setCockpitRegisterFilter] =
+    useState<CockpitRegisterFilter>("all");
   const [solverStatus, setSolverStatus] = useState("");
   const [solverSolution, setSolverSolution] =
     useState<HoleTriangulationSolution | null>(null);
@@ -832,6 +835,14 @@ export default function App() {
       ),
     [acousticSegments, holes, fingerings, tempC, pitchStandardHz]
   );
+  const filteredTuningCockpitRows = useMemo(() => {
+    if (cockpitRegisterFilter === "all") {
+      return tuningCockpitRows;
+    }
+
+    const targetRegister = cockpitRegisterFilter === "chalumeau" ? "fundamental" : "third";
+    return tuningCockpitRows.filter((row) => row.register === targetRegister);
+  }, [cockpitRegisterFilter, tuningCockpitRows]);
   const toneHolesAscendingFromBell = useMemo(
     () => [...holes].sort((a, b) => a.zMm - b.zMm),
     [holes]
@@ -3032,6 +3043,21 @@ export default function App() {
         <section className="panel full-width">
           <div className="panel-head">
             <h2>Note Tuning Cockpit</h2>
+            <div className="settings-row">
+              <label>
+                Register filter
+                <select
+                  value={cockpitRegisterFilter}
+                  onChange={(e) =>
+                    setCockpitRegisterFilter(e.target.value as CockpitRegisterFilter)
+                  }
+                >
+                  <option value="all">Show all</option>
+                  <option value="chalumeau">Hide clarion (chalumeau only)</option>
+                  <option value="clarion">Hide chalumeau (clarion only)</option>
+                </select>
+              </label>
+            </div>
           </div>
           <p className="math">
             Per-note local sensitivities and suggested geometry deltas from the current model.
@@ -3055,7 +3081,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {tuningCockpitRows.map((row) => {
+              {filteredTuningCockpitRows.map((row) => {
                 const centsClass =
                   row.centsErrorToTarget === null
                     ? "neutral"
