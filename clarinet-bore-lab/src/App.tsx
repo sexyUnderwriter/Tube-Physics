@@ -1402,36 +1402,73 @@ export default function App() {
     }
 
     const diatonicMajorSteps = [0, 2, 4, 5, 7, 9, 11];
-    const orderedHoles = [...holes].sort((a, b) => a.zMm - b.zMm);
+    const fingerHoles = holes
+      .filter((hole) => /finger\s*\d+/i.test(hole.label))
+      .sort((a, b) => a.zMm - b.zMm);
+    const orderedHoles =
+      fingerHoles.length > 0
+        ? fingerHoles
+        : [...holes].sort((a, b) => a.zMm - b.zMm);
+
+    if (orderedHoles.length === 0) {
+      return;
+    }
+
     const updatedTargets = new Map<string, string>();
     const generatedFingerings: Fingering[] = [];
 
-    for (let i = 0; i < orderedHoles.length; i += 1) {
-      const hole = orderedHoles[i];
+    // Progression:
+    // 0 = bell (all covered),
+    // 1 = lowest finger hole first open,
+    // 2 = next hole plus all lower holes open, ...
+    // Final step uses explicit vent-hole mode at the top hole to include the top-hole-open state.
+    const sequenceLength = orderedHoles.length + 1;
+    for (let i = 0; i < sequenceLength; i += 1) {
       const scaleDegree = i % diatonicMajorSteps.length;
       const octaveOffset = Math.floor(i / diatonicMajorSteps.length) * 12;
       const chalumeauMidi = firstMidi + octaveOffset + diatonicMajorSteps[scaleDegree];
       const clarionMidi = chalumeauMidi + 19;
       const chalumeauNote = midiToName(chalumeauMidi);
       const clarionNote = midiToName(clarionMidi);
-      const termination = i === 0 ? "bell" : "below-open-vent-closed";
+      const firstOpenHole = i > 0 ? orderedHoles[i - 1] : null;
+      const hasAnchorAbove = i > 0 && i < orderedHoles.length;
+      const anchorHole =
+        i === 0
+          ? orderedHoles[0]
+          : hasAnchorAbove
+            ? orderedHoles[i]
+            : firstOpenHole!;
+      const termination: "bell" | "below-open-vent-closed" | "vent-hole" =
+        i === 0 ? "bell" : hasAnchorAbove ? "below-open-vent-closed" : "vent-hole";
 
-      updatedTargets.set(hole.id, chalumeauNote);
+      if (firstOpenHole) {
+        updatedTargets.set(firstOpenHole.id, chalumeauNote);
+      }
+
+      const openPatternLabel =
+        firstOpenHole === null
+          ? `All covered ${chalumeauNote}`
+          : hasAnchorAbove
+            ? `Chalumeau ${chalumeauNote} (${firstOpenHole.label} and below open)`
+            : `Chalumeau ${chalumeauNote} (${firstOpenHole.label} first open)`;
 
       generatedFingerings.push({
         id: makeId("fing"),
-        label: i === 0 ? `All covered ${chalumeauNote}` : `Chalumeau ${chalumeauNote}`,
+        label: openPatternLabel,
         targetNote: chalumeauNote,
-        ventHoleId: hole.id,
+        ventHoleId: anchorHole.id,
         register: "fundamental",
         termination,
       });
 
       generatedFingerings.push({
         id: makeId("fing"),
-        label: `Clarion ${clarionNote}`,
+        label:
+          firstOpenHole === null
+            ? `Clarion ${clarionNote} (all covered base)`
+            : `Clarion ${clarionNote} (${firstOpenHole.label} first open)`,
         targetNote: clarionNote,
-        ventHoleId: hole.id,
+        ventHoleId: anchorHole.id,
         register: "third",
         termination,
       });
@@ -2585,7 +2622,8 @@ export default function App() {
               <tr>
                 <th>Name</th>
                 <th>Target</th>
-                <th>First open hole</th>
+                <th>Selected vent hole</th>
+                <th>Resolved first open</th>
                 <th>Register</th>
                 <th>Termination</th>
                 <th>Predicted</th>
@@ -2629,6 +2667,7 @@ export default function App() {
                         ))}
                       </select>
                     </td>
+                    <td>{result?.ventHoleLabel ?? "N/A"}</td>
                     <td>
                       <select
                         value={fingering.register}
