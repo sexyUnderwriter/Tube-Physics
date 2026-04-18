@@ -3,6 +3,7 @@ import {
   BoreSegment,
   Fingering,
   FingeringTuningSensitivity,
+  HoleTriangulationMode,
   HoleTriangulationSolution,
   ToneHole,
   diameterAtMm,
@@ -444,7 +445,6 @@ function clampSignedDelta(value: number, maxAbs: number): number {
 
 const FILE_HEADER = "CLARINET_BORE_LAB_MODEL_V1";
 const MANUAL_REGISTER_NONE = "__none__";
-type CockpitRegisterFilter = "all" | "chalumeau" | "clarion";
 
 // Keep diagnostics implementation in code, but hide it in normal workflow.
 // Set to true when troubleshooting host/browser audio-routing issues.
@@ -618,8 +618,11 @@ export default function App() {
   const [solverRegister, setSolverRegister] = useState<"fundamental" | "third">(
     "fundamental"
   );
-  const [cockpitRegisterFilter, setCockpitRegisterFilter] =
-    useState<CockpitRegisterFilter>("all");
+  const [solverMode, setSolverMode] = useState<HoleTriangulationMode>("z-and-diameter");
+  const [cockpitShowChalumeau, setCockpitShowChalumeau] = useState(true);
+  const [cockpitShowClarion, setCockpitShowClarion] = useState(true);
+  const [intonationShowChalumeau, setIntonationShowChalumeau] = useState(true);
+  const [intonationShowClarion, setIntonationShowClarion] = useState(true);
   const [solverStatus, setSolverStatus] = useState("");
   const [solverSolution, setSolverSolution] =
     useState<HoleTriangulationSolution | null>(null);
@@ -836,13 +839,19 @@ export default function App() {
     [acousticSegments, holes, fingerings, tempC, pitchStandardHz]
   );
   const filteredTuningCockpitRows = useMemo(() => {
-    if (cockpitRegisterFilter === "all") {
-      return tuningCockpitRows;
-    }
-
-    const targetRegister = cockpitRegisterFilter === "chalumeau" ? "fundamental" : "third";
-    return tuningCockpitRows.filter((row) => row.register === targetRegister);
-  }, [cockpitRegisterFilter, tuningCockpitRows]);
+    return tuningCockpitRows.filter((row) => {
+      if (row.register === "fundamental") {
+        return cockpitShowChalumeau;
+      }
+      return cockpitShowClarion;
+    });
+  }, [cockpitShowChalumeau, cockpitShowClarion, tuningCockpitRows]);
+  const intonationFilteredFingerings = useMemo(() => {
+    return fingerings.filter((f) => {
+      if (f.register === "fundamental") return intonationShowChalumeau;
+      return intonationShowClarion;
+    });
+  }, [fingerings, intonationShowChalumeau, intonationShowClarion]);
   const toneHolesAscendingFromBell = useMemo(
     () => [...holes].sort((a, b) => a.zMm - b.zMm),
     [holes]
@@ -897,7 +906,8 @@ export default function App() {
       solverOpenHoleId,
       targetHz,
       tempC,
-      solverRegister
+      solverRegister,
+      solverMode
     );
 
     if (!solution) {
@@ -1531,7 +1541,7 @@ export default function App() {
       {
         key: "zMm" as const,
         deltaMm: row.suggestedDeltaZMm,
-        maxAbs: 12,
+        maxAbs: Infinity,
       },
       {
         key: "chimneyMm" as const,
@@ -2662,6 +2672,24 @@ export default function App() {
         <section className="panel full-width">
           <div className="panel-head">
             <h2>Fingering and Full-Scale Intonation</h2>
+            <div className="settings-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={intonationShowChalumeau}
+                  onChange={(e) => setIntonationShowChalumeau(e.target.checked)}
+                />
+                Show chalumeau
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={intonationShowClarion}
+                  onChange={(e) => setIntonationShowClarion(e.target.checked)}
+                />
+                Show clarion
+              </label>
+            </div>
             <button
               type="button"
               onClick={() =>
@@ -2868,6 +2896,18 @@ export default function App() {
                     <option value="third">Third harmonic (f3)</option>
                   </select>
                 </label>
+                <label>
+                  Solve mode
+                  <select
+                    value={solverMode}
+                    onChange={(e) =>
+                      setSolverMode(e.target.value as HoleTriangulationMode)
+                    }
+                  >
+                    <option value="z-and-diameter">z + diameter</option>
+                    <option value="z-only">z only (keep diameter)</option>
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={runOpenHoleTriangulation}
@@ -2931,7 +2971,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {fingerings.map((fingering) => {
+              {intonationFilteredFingerings.map((fingering) => {
                 const result = fingeringResults.find((entry) => entry.id === fingering.id);
                 return (
                   <tr key={fingering.id}>
@@ -3045,17 +3085,20 @@ export default function App() {
             <h2>Note Tuning Cockpit</h2>
             <div className="settings-row">
               <label>
-                Register filter
-                <select
-                  value={cockpitRegisterFilter}
-                  onChange={(e) =>
-                    setCockpitRegisterFilter(e.target.value as CockpitRegisterFilter)
-                  }
-                >
-                  <option value="all">Show all</option>
-                  <option value="chalumeau">Hide clarion (chalumeau only)</option>
-                  <option value="clarion">Hide chalumeau (clarion only)</option>
-                </select>
+                <input
+                  type="checkbox"
+                  checked={cockpitShowChalumeau}
+                  onChange={(e) => setCockpitShowChalumeau(e.target.checked)}
+                />
+                Show chalumeau
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={cockpitShowClarion}
+                  onChange={(e) => setCockpitShowClarion(e.target.checked)}
+                />
+                Show clarion
               </label>
             </div>
           </div>
@@ -3177,7 +3220,7 @@ export default function App() {
                               row,
                               "zMm",
                               row.suggestedDeltaZMm,
-                              12
+                              Infinity
                             )
                           }
                           disabled={row.soundingHoleId === null || row.suggestedDeltaZMm === null}
@@ -3218,6 +3261,15 @@ export default function App() {
                   </tr>
                 );
               })}
+              {filteredTuningCockpitRows.length === 0 && (
+                <tr>
+                  <td colSpan={11}>
+                    <span className="muted-cell">
+                      No cockpit rows visible with the current register filter.
+                    </span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </section>

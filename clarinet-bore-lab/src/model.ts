@@ -68,6 +68,8 @@ export type HoleTriangulationSolution = {
   centsError: number;
 };
 
+export type HoleTriangulationMode = "z-and-diameter" | "z-only";
+
 export type TuningSensitivityOptions = {
   diameterStepMm?: number;
   zStepMm?: number;
@@ -492,7 +494,8 @@ export function triangulateHoleForTargetHz(
   holeId: string,
   targetHz: number,
   tempC: number,
-  register: "fundamental" | "third" = "fundamental"
+  register: "fundamental" | "third" = "fundamental",
+  mode: HoleTriangulationMode = "z-and-diameter"
 ): HoleTriangulationSolution | null {
   if (!Number.isFinite(targetHz) || targetHz <= 0) {
     return null;
@@ -510,8 +513,10 @@ export function triangulateHoleForTargetHz(
 
   const initialZMin = clamp(sourceHole.zMm - 95, zMin, zMax);
   const initialZMax = clamp(sourceHole.zMm + 95, zMin, zMax);
-  const initialDiaMin = Math.max(0.8, sourceHole.diameterMm - 4.5);
-  const initialDiaMax = Math.min(14, sourceHole.diameterMm + 4.5);
+  const initialDiaMin =
+    mode === "z-only" ? sourceHole.diameterMm : Math.max(0.8, sourceHole.diameterMm - 4.5);
+  const initialDiaMax =
+    mode === "z-only" ? sourceHole.diameterMm : Math.min(14, sourceHole.diameterMm + 4.5);
 
   let best = {
     zMm: sourceHole.zMm,
@@ -550,11 +555,18 @@ export function triangulateHoleForTargetHz(
   let diaLow = initialDiaMin;
   let diaHigh = initialDiaMax;
 
-  const passes = [
-    { zSteps: 30, diaSteps: 24 },
-    { zSteps: 26, diaSteps: 22 },
-    { zSteps: 20, diaSteps: 18 },
-  ];
+  const passes =
+    mode === "z-only"
+      ? [
+          { zSteps: 40, diaSteps: 1 },
+          { zSteps: 34, diaSteps: 1 },
+          { zSteps: 28, diaSteps: 1 },
+        ]
+      : [
+          { zSteps: 30, diaSteps: 24 },
+          { zSteps: 26, diaSteps: 22 },
+          { zSteps: 20, diaSteps: 18 },
+        ];
 
   for (const pass of passes) {
     const zDen = Math.max(pass.zSteps - 1, 1);
@@ -569,11 +581,16 @@ export function triangulateHoleForTargetHz(
     }
 
     const zSpan = Math.max((zHigh - zLow) * 0.22, 3.5);
-    const diaSpan = Math.max((diaHigh - diaLow) * 0.22, 0.4);
+    const diaSpan = mode === "z-only" ? 0 : Math.max((diaHigh - diaLow) * 0.22, 0.4);
     zLow = clamp(best.zMm - zSpan, zMin, zMax);
     zHigh = clamp(best.zMm + zSpan, zMin, zMax);
-    diaLow = Math.max(0.8, best.diameterMm - diaSpan);
-    diaHigh = Math.min(14, best.diameterMm + diaSpan);
+    if (mode === "z-only") {
+      diaLow = sourceHole.diameterMm;
+      diaHigh = sourceHole.diameterMm;
+    } else {
+      diaLow = Math.max(0.8, best.diameterMm - diaSpan);
+      diaHigh = Math.min(14, best.diameterMm + diaSpan);
+    }
   }
 
   const cents = centsError(best.predictedHz, targetHz);
@@ -823,7 +840,7 @@ export function evaluateFingeringTuningSensitivity(
   const zStepMm = Math.max(options.zStepMm ?? 0.5, 0.01);
   const chimneyStepMm = Math.max(options.chimneyStepMm ?? 0.1, 0.01);
   const maxSuggestedDiameterDeltaMm = Math.max(options.maxSuggestedDiameterDeltaMm ?? 1.5, 0.01);
-  const maxSuggestedZDeltaMm = Math.max(options.maxSuggestedZDeltaMm ?? 12, 0.01);
+  const maxSuggestedZDeltaMm = options.maxSuggestedZDeltaMm != null ? Math.max(options.maxSuggestedZDeltaMm, 0.01) : Infinity;
   const maxSuggestedChimneyDeltaMm = Math.max(options.maxSuggestedChimneyDeltaMm ?? 2.5, 0.01);
   const sensitivityFloor = Math.max(options.sensitivityFloor ?? 1e-3, 1e-6);
 
