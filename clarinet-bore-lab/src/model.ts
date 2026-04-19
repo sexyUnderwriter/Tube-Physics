@@ -1073,6 +1073,42 @@ export function modelConfidenceWarnings(
   return [...new Set(warnings)];
 }
 
+/**
+ * Returns a copy of `holes` with each hole's zMm reassigned so they are
+ * evenly spaced across the body bore (z = 0 at bell, z = totalBoreLengthMm at
+ * the barrel/mouthpiece end).  All other hole properties (label, diameter,
+ * chimney, target note, angle, id) are preserved.  Holes are ordered from
+ * bell to mouthpiece in the returned array.  Intended as a clean-slate
+ * starting point when laying out a new bore.
+ *
+ * The bore is divided into (N + 1) equal intervals and one hole is placed at
+ * each internal boundary, so the first and last holes sit one interval away
+ * from the bell and mouthpiece ends respectively.
+ */
+export function evenlySpaceHoles(
+  holes: ToneHole[],
+  segments: BoreSegment[]
+): ToneHole[] {
+  if (holes.length === 0) {
+    return [];
+  }
+
+  const totalMm = totalBoreLengthMm(segments);
+  if (totalMm <= 0) {
+    return holes;
+  }
+
+  // Sort from bell (low z) to mouthpiece (high z) to preserve relative order.
+  const sorted = [...holes].sort((a, b) => a.zMm - b.zMm);
+  const n = sorted.length;
+  const step = totalMm / (n + 1);
+
+  return sorted.map((hole, i) => ({
+    ...hole,
+    zMm: Math.round((step * (i + 1)) * 100) / 100,
+  }));
+}
+
 export function sampleBoreProfile(
   segments: BoreSegment[],
   sampleCount: number

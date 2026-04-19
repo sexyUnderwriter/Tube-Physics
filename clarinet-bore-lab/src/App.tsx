@@ -8,6 +8,7 @@ import {
   ToneHole,
   diameterAtMm,
   evaluateFingeringTuningSensitivities,
+  evenlySpaceHoles,
   midiToName,
   modelConfidenceWarnings,
   predictClosedTubeFundamentalHz,
@@ -1624,6 +1625,14 @@ export default function App() {
     setHoles((prev) => [...prev].sort((a, b) => a.zMm - b.zMm));
   }
 
+  function applyEvenHoleSpacing(): void {
+    setHoles((prev) => evenlySpaceHoles(prev, segments));
+  }
+
+  function applyEvenHoleSpacing(): void {
+    setHoles((prev) => evenlySpaceHoles(prev, segments));
+  }
+
   function applySuggestedDeltaToHole(
     row: FingeringTuningSensitivity,
     key: "diameterMm" | "zMm" | "chimneyMm",
@@ -2427,6 +2436,14 @@ export default function App() {
                 disabled={holes.length < 2}
               >
                 Sort bell → mouthpiece
+              </button>
+              <button
+                type="button"
+                onClick={applyEvenHoleSpacing}
+                disabled={holes.length === 0}
+                title="Redistribute all holes at equal intervals across the body bore length. Preserves each hole's other properties."
+              >
+                Space holes evenly
               </button>
               <button
                 type="button"
