@@ -83,6 +83,45 @@ function buildClosedTubeSegments(totalLengthMm: number, boreMm: number): BoreSeg
   ];
 }
 
+function requiredClosedTubeLengthMm(frequencyHz: number, tempC: number): number {
+  const cMs = 331.3 + 0.606 * tempC;
+  return (cMs * 1000) / (4 * frequencyHz);
+}
+
+function predictHzForRow(row: CalibrationRow, acousticAddMm: number): number {
+  const modeledLengthMm = row.tubeLengthMm + acousticAddMm;
+  const segments = buildClosedTubeSegments(modeledLengthMm, row.tubeIdMm);
+  return predictClosedTubeFundamentalHz(segments, row.tempC);
+}
+
+function rootMeanSquare(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  const meanSquare = values.reduce((sum, value) => sum + value * value, 0) / values.length;
+  return Math.sqrt(meanSquare);
+}
+
+function fitConstantAcousticAddMm(rows: CalibrationRow[]): number {
+  let bestAddMm = 0;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let addMm = 0; addMm <= 200; addMm += 0.01) {
+    let score = 0;
+    for (const row of rows) {
+      const predictedHz = predictHzForRow(row, addMm);
+      const cents = centsError(row.measuredFrequencyHz, predictedHz);
+      score += cents * cents;
+    }
+    if (score < bestScore) {
+      bestScore = score;
+      bestAddMm = addMm;
+    }
+  }
+
+  return Number(bestAddMm.toFixed(2));
+}
+
 function toFixed(value: number, digits: number): string {
   return value.toFixed(digits);
 }
@@ -91,9 +130,16 @@ function main(): void {
   const cwd = process.cwd();
   const inputPath = resolve(cwd, "mouthpiece-calibration-data.csv");
   const outputPath = resolve(cwd, "mouthpiece-calibration-results.csv");
+  const summaryPath = resolve(cwd, "mouthpiece-calibration-fit.json");
 
   const raw = readFileSync(inputPath, "utf8");
   const rows = parseCsv(raw);
+  const fittedAcousticAddMm = fitConstantAcousticAddMm(rows);
+  const meanImpliedAcousticAddMm =
+    rows.reduce(
+      (sum, row) => sum + (requiredClosedTubeLengthMm(row.measuredFrequencyHz, row.tempC) - row.tubeLengthMm),
+      0
+    ) / rows.length;
 
   const outputLines = [
     [
@@ -102,27 +148,47 @@ function main(): void {
       "tube_id_mm",
       "tube_od_mm",
       "mouthpiece_penetration_mm",
-      "modeled_length_mm",
+      "modeled_length_raw_mm",
+      "modeled_length_fitted_mm",
+      "implied_acoustic_add_mm",
+      "fitted_acoustic_add_mm",
       "temp_c",
       "actual_hz",
-      "predicted_hz",
-      "delta_hz",
-      "percent_error",
-      "cents_error",
+      "predicted_hz_raw",
+      "predicted_hz_fitted",
+      "delta_hz_raw",
+      "delta_hz_fitted",
+      "percent_error_raw",
+      "percent_error_fitted",
+      "cents_error_raw",
+      "cents_error_fitted",
       "target_note",
       "comments",
     ].join(","),
   ];
 
+  const rawDeltaHzs: number[] = [];
+  const fittedDeltaHzs: number[] = [];
+  const rawCentsErrors: number[] = [];
+  const fittedCentsErrors: number[] = [];
+
   for (const row of rows) {
-    // Tube length from the calibration CSV is treated as the full acoustic tube length.
-    // Keep mouthpiece_penetration_mm as metadata only to avoid double-counting.
-    const modeledLengthMm = row.tubeLengthMm;
-    const segments = buildClosedTubeSegments(modeledLengthMm, row.tubeIdMm);
-    const predictedHz = predictClosedTubeFundamentalHz(segments, row.tempC);
-    const deltaHz = predictedHz - row.measuredFrequencyHz;
-    const percentError = (deltaHz / row.measuredFrequencyHz) * 100;
-    const cents = centsError(row.measuredFrequencyHz, predictedHz);
+    const modeledLengthRawMm = row.tubeLengthMm;
+    const modeledLengthFittedMm = row.tubeLengthMm + fittedAcousticAddMm;
+    const impliedAcousticAddMm = requiredClosedTubeLengthMm(row.measuredFrequencyHz, row.tempC) - row.tubeLengthMm;
+    const predictedHzRaw = predictHzForRow(row, 0);
+    const predictedHzFitted = predictHzForRow(row, fittedAcousticAddMm);
+    const deltaHzRaw = predictedHzRaw - row.measuredFrequencyHz;
+    const deltaHzFitted = predictedHzFitted - row.measuredFrequencyHz;
+    const percentErrorRaw = (deltaHzRaw / row.measuredFrequencyHz) * 100;
+    const percentErrorFitted = (deltaHzFitted / row.measuredFrequencyHz) * 100;
+    const centsRaw = centsError(row.measuredFrequencyHz, predictedHzRaw);
+    const centsFitted = centsError(row.measuredFrequencyHz, predictedHzFitted);
+
+    rawDeltaHzs.push(deltaHzRaw);
+    fittedDeltaHzs.push(deltaHzFitted);
+    rawCentsErrors.push(centsRaw);
+    fittedCentsErrors.push(centsFitted);
 
     outputLines.push(
       [
@@ -131,13 +197,20 @@ function main(): void {
         toFixed(row.tubeIdMm, 3),
         toFixed(row.tubeOdMm, 3),
         toFixed(row.mouthpiecePenetrationMm, 3),
-        toFixed(modeledLengthMm, 3),
+        toFixed(modeledLengthRawMm, 3),
+        toFixed(modeledLengthFittedMm, 3),
+        toFixed(impliedAcousticAddMm, 4),
+        toFixed(fittedAcousticAddMm, 4),
         toFixed(row.tempC, 3),
         toFixed(row.measuredFrequencyHz, 4),
-        toFixed(predictedHz, 4),
-        toFixed(deltaHz, 4),
-        toFixed(percentError, 4),
-        toFixed(cents, 4),
+        toFixed(predictedHzRaw, 4),
+        toFixed(predictedHzFitted, 4),
+        toFixed(deltaHzRaw, 4),
+        toFixed(deltaHzFitted, 4),
+        toFixed(percentErrorRaw, 4),
+        toFixed(percentErrorFitted, 4),
+        toFixed(centsRaw, 4),
+        toFixed(centsFitted, 4),
         row.targetNote,
         row.comments,
       ].join(",")
@@ -145,7 +218,20 @@ function main(): void {
   }
 
   writeFileSync(outputPath, `${outputLines.join("\n")}\n`, "utf8");
+
+  const summary = {
+    sampleCount: rows.length,
+    fittedAcousticAddMm,
+    meanImpliedAcousticAddMm: Number(meanImpliedAcousticAddMm.toFixed(4)),
+    rmsHzErrorRaw: Number(rootMeanSquare(rawDeltaHzs).toFixed(4)),
+    rmsHzErrorFitted: Number(rootMeanSquare(fittedDeltaHzs).toFixed(4)),
+    rmsCentsErrorRaw: Number(rootMeanSquare(rawCentsErrors).toFixed(4)),
+    rmsCentsErrorFitted: Number(rootMeanSquare(fittedCentsErrors).toFixed(4)),
+  };
+
+  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   console.log(`Wrote ${rows.length} rows to ${outputPath}`);
+  console.log(`Fitted acoustic add: ${fittedAcousticAddMm.toFixed(2)} mm`);
 }
 
 main();

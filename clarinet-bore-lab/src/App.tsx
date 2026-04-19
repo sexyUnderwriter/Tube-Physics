@@ -276,8 +276,8 @@ const mouthpiecePresets: MouthpiecePreset[] = [
     openingHundredthMm: 228.6,
     openingMm: 2.286,
     facingLength: "Medium",
-    // Keep acoustic insert and shank bore aligned with existing tenor geometry.
-    acousticInsertMm: 24,
+    // Calibrated from the 2026-04-18 tube dataset in mouthpiece-calibration-data.csv.
+    acousticInsertMm: 93.01,
     shankBoreMm: 16.8,
     // User-provided body length estimate for this black resin/hard rubber model.
     overallLengthMm: 104,
@@ -569,25 +569,38 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
     });
 
     const mouthpiece: MouthpieceGeometry = parsed.mouthpiece
-      ? {
-          label:
+      ? (() => {
+          const savedLabel =
             typeof parsed.mouthpiece.label === "string" && parsed.mouthpiece.label.trim().length > 0
               ? parsed.mouthpiece.label
-              : "Mouthpiece",
-          insertMm:
-            Number.isFinite(parsed.mouthpiece.insertMm) && parsed.mouthpiece.insertMm !== undefined
-              ? Math.max(parsed.mouthpiece.insertMm, 0)
-              : preset.acousticInsertMm,
-          boreMm:
-            Number.isFinite(parsed.mouthpiece.boreMm) && parsed.mouthpiece.boreMm !== undefined
-              ? Math.max(parsed.mouthpiece.boreMm, 0)
-              : preset.shankBoreMm,
-          overallLengthMm:
-            Number.isFinite(parsed.mouthpiece.overallLengthMm) && parsed.mouthpiece.overallLengthMm !== undefined
-              ? Math.max(parsed.mouthpiece.overallLengthMm, 0)
-              : preset.overallLengthMm,
-          presetApplied: parsed.mouthpiece.presetApplied !== false,
-        }
+              : "Mouthpiece";
+          const presetApplied = parsed.mouthpiece.presetApplied !== false;
+
+          if (presetApplied) {
+            return {
+              ...buildMouthpieceGeometry(preset),
+              // Preserve a custom display label while still refreshing geometry from the preset.
+              label: savedLabel,
+            };
+          }
+
+          return {
+            label: savedLabel,
+            insertMm:
+              Number.isFinite(parsed.mouthpiece.insertMm) && parsed.mouthpiece.insertMm !== undefined
+                ? Math.max(parsed.mouthpiece.insertMm, 0)
+                : preset.acousticInsertMm,
+            boreMm:
+              Number.isFinite(parsed.mouthpiece.boreMm) && parsed.mouthpiece.boreMm !== undefined
+                ? Math.max(parsed.mouthpiece.boreMm, 0)
+                : preset.shankBoreMm,
+            overallLengthMm:
+              Number.isFinite(parsed.mouthpiece.overallLengthMm) && parsed.mouthpiece.overallLengthMm !== undefined
+                ? Math.max(parsed.mouthpiece.overallLengthMm, 0)
+                : preset.overallLengthMm,
+            presetApplied: false,
+          };
+        })()
       : buildMouthpieceGeometry(preset);
 
     return {
@@ -902,6 +915,32 @@ export default function App() {
     () => results.find((result) => result.id === solverOpenHoleId) ?? null,
     [results, solverOpenHoleId]
   );
+  const selectedSolverTargetHz = useMemo(() => {
+    if (!selectedSolverHole || !selectedSolverHole.targetNote.trim()) {
+      return null;
+    }
+    return scientificPitchToHz(selectedSolverHole.targetNote, pitchStandardHz);
+  }, [pitchStandardHz, selectedSolverHole]);
+  const solverDrillSuggestions = useMemo(() => {
+    if (!solverSolution) {
+      return {
+        notOver: null as DrillBit | null,
+        nextOver: null as DrillBit | null,
+      };
+    }
+
+    const targetIn = solverSolution.solvedDiameterMm / 25.4;
+    const bestIndex = findClosestNotOverDrillBitIndex(targetIn, ALL_DRILL_BITS);
+    return {
+      notOver: bestIndex >= 0 ? ALL_DRILL_BITS[bestIndex] : null,
+      nextOver:
+        bestIndex >= 0 && bestIndex < ALL_DRILL_BITS.length - 1
+          ? ALL_DRILL_BITS[bestIndex + 1]
+          : bestIndex === -1
+            ? ALL_DRILL_BITS[0] ?? null
+            : null,
+    };
+  }, [solverSolution]);
 
   function runOpenHoleTriangulation(): void {
     const targetHz = Number(solverTargetHz);
@@ -2901,6 +2940,23 @@ export default function App() {
                     onChange={(e) => setSolverTargetHz(e.target.value)}
                   />
                 </label>
+                <button
+                  type="button"
+                  className="sync-btn"
+                  onClick={() => {
+                    if (selectedSolverTargetHz !== null) {
+                      setSolverTargetHz(selectedSolverTargetHz.toFixed(2));
+                    }
+                  }}
+                  disabled={selectedSolverTargetHz === null}
+                  title={
+                    selectedSolverHole?.targetNote
+                      ? `Use ${selectedSolverHole.targetNote} = ${selectedSolverTargetHz?.toFixed(2)} Hz`
+                      : "Set a target note on the selected hole first"
+                  }
+                >
+                  Use hole target
+                </button>
                 <label>
                   Register
                   <select
@@ -2953,12 +3009,33 @@ export default function App() {
                   Hole: {selectedSolverHole ? selectedSolverHole.label : "N/A"}
                 </span>
                 <span className="badge neutral">
+                  Hole target: {selectedSolverHole?.targetNote?.trim()
+                    ? selectedSolverTargetHz !== null
+                      ? `${selectedSolverHole.targetNote} (${selectedSolverTargetHz.toFixed(2)} Hz)`
+                      : selectedSolverHole.targetNote
+                    : "N/A"}
+                </span>
+                <span className="badge neutral">
                   Suggested z: {solverSolution ? `${solverSolution.solvedZMm.toFixed(2)} mm` : "--"}
                 </span>
                 <span className="badge neutral">
                   Suggested dia: {solverSolution
                     ? `${solverSolution.solvedDiameterMm.toFixed(2)} mm`
                     : "--"}
+                </span>
+                <span className="badge neutral">
+                  Drill under: {solverDrillSuggestions.notOver
+                    ? `${formatDrillBitLabel(solverDrillSuggestions.notOver)} ${formatDrillFamily(
+                        solverDrillSuggestions.notOver
+                      )} (${inchesToMm(solverDrillSuggestions.notOver.diameterIn).toFixed(2)} mm)`
+                    : "N/A"}
+                </span>
+                <span className="badge neutral">
+                  Drill over: {solverDrillSuggestions.nextOver
+                    ? `${formatDrillBitLabel(solverDrillSuggestions.nextOver)} ${formatDrillFamily(
+                        solverDrillSuggestions.nextOver
+                      )} (${inchesToMm(solverDrillSuggestions.nextOver.diameterIn).toFixed(2)} mm)`
+                    : "N/A"}
                 </span>
               </div>
             </div>

@@ -1,0 +1,9 @@
+{
+  "sampleCount": 6,
+  "fittedAcousticAddMm": 93.01,
+  "meanImpliedAcousticAddMm": 94.0312,
+  "rmsHzErrorRaw": 33.8695,
+  "rmsHzErrorFitted": 1.5047,
+  "rmsCentsErrorRaw": 323.1446,
+  "rmsCentsErrorFitted": 15.5283
+}
