@@ -1,0 +1,283 @@
+CLARINET_BORE_LAB_MODEL_V1
+{
+  "version": 1,
+  "name": "Prototype Clarinet Bore (with bass clarinet bell)",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "F2",
+  "selectedMouthpieceId": "meyer-tenor-6m-bb",
+  "segments": [
+    {
+      "id": "seg-bell-opening",
+      "label": "Bell opening",
+      "zMm": 0,
+      "diameterMm": 60,
+      "outerDiameterMm": 66
+    },
+    {
+      "id": "seg-bell-mid-low",
+      "label": "Bell mid (lower)",
+      "zMm": 40,
+      "diameterMm": 40,
+      "outerDiameterMm": 46
+    },
+    {
+      "id": "seg-bell-mid",
+      "label": "Bell mid",
+      "zMm": 80,
+      "diameterMm": 25,
+      "outerDiameterMm": 31
+    },
+    {
+      "id": "seg-bell-throat",
+      "label": "Bell throat",
+      "zMm": 120,
+      "diameterMm": 18,
+      "outerDiameterMm": 27
+    },
+    {
+      "id": "seg-bell-join",
+      "label": "Bell join (bore transition)",
+      "zMm": 160,
+      "diameterMm": 15.87,
+      "outerDiameterMm": 24
+    },
+    {
+      "id": "seg-wur3mke",
+      "label": "Barrell",
+      "zMm": 890,
+      "diameterMm": 15.87,
+      "outerDiameterMm": 24
+    }
+  ],
+  "mouthpiece": {
+    "label": "Mouthpiece",
+    "insertMm": 93.01,
+    "boreMm": 16.8,
+    "overallLengthMm": 104,
+    "presetApplied": true
+  },
+  "holes": [
+    {
+      "id": "hole-ol4e7ux",
+      "label": "Finger 7",
+      "zMm": 180.16636698113902,
+      "angleDeg": 0,
+      "diameterMm": 9,
+      "chimneyMm": 3.643916223248635,
+      "targetNote": "G2"
+    },
+    {
+      "id": "hole-yjsrcal",
+      "label": "Finger 6",
+      "zMm": 305.71541850782893,
+      "angleDeg": 0,
+      "diameterMm": 5.5,
+      "chimneyMm": 4.904412237035805,
+      "targetNote": "A2"
+    },
+    {
+      "id": "hole-y413ezt",
+      "label": "Finger 5",
+      "zMm": 350.4658905799804,
+      "angleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 4.6380616669048935,
+      "targetNote": "A#2"
+    },
+    {
+      "id": "hole-hzj3dbn",
+      "label": "Finger 4",
+      "zMm": 447.6044687979813,
+      "angleDeg": 0,
+      "diameterMm": 7.476798830337461,
+      "chimneyMm": 4.065,
+      "targetNote": "C3"
+    },
+    {
+      "id": "hole-cctkvgp",
+      "label": "Finger 3",
+      "zMm": 533.2901209618359,
+      "angleDeg": 0,
+      "diameterMm": 7.348885269064094,
+      "chimneyMm": 4.065,
+      "targetNote": "D3"
+    },
+    {
+      "id": "hole-o7fp5b0",
+      "label": "Finger 2",
+      "zMm": 604.0253065161835,
+      "angleDeg": 0,
+      "diameterMm": 6.969452032443372,
+      "chimneyMm": 4.065,
+      "targetNote": "E3"
+    },
+    {
+      "id": "hole-z2nbyu1",
+      "label": "Finger 1",
+      "zMm": 639.1864722231912,
+      "angleDeg": 0,
+      "diameterMm": 6.976860854062391,
+      "chimneyMm": 4.065,
+      "targetNote": "F3"
+    },
+    {
+      "id": "hole-3sym609",
+      "label": "Thumb",
+      "zMm": 712,
+      "angleDeg": -180,
+      "diameterMm": 6.966475345531341,
+      "chimneyMm": 4.065,
+      "targetNote": "D3"
+    },
+    {
+      "id": "hole-xzo0uht",
+      "label": "Vent",
+      "zMm": 801,
+      "angleDeg": -180,
+      "diameterMm": 2.3777264967168636,
+      "chimneyMm": 3,
+      "targetNote": "E3"
+    },
+    {
+      "id": "hole-meqxoqk",
+      "label": "Front Key",
+      "zMm": 750,
+      "angleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 3,
+      "targetNote": ""
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-865je20",
+      "label": "All covered F2",
+      "targetNote": "F2",
+      "ventHoleId": "hole-ol4e7ux",
+      "register": "fundamental",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-zbhjtto",
+      "label": "Clarion C4 (all covered base)",
+      "targetNote": "C4",
+      "ventHoleId": "hole-ol4e7ux",
+      "register": "third",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-p7elyxd",
+      "label": "Chalumeau G2 (Finger 7 and below open)",
+      "targetNote": "G2",
+      "ventHoleId": "hole-yjsrcal",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-9955nsg",
+      "label": "Clarion D4 (Finger 7 first open)",
+      "targetNote": "D4",
+      "ventHoleId": "hole-yjsrcal",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-uifx9pt",
+      "label": "Chalumeau A2 (Finger 6 and below open)",
+      "targetNote": "A2",
+      "ventHoleId": "hole-y413ezt",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-8yfvnj8",
+      "label": "Clarion E4 (Finger 6 first open)",
+      "targetNote": "E4",
+      "ventHoleId": "hole-y413ezt",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-vy18c97",
+      "label": "Chalumeau A#2 (Finger 5 and below open)",
+      "targetNote": "A#2",
+      "ventHoleId": "hole-hzj3dbn",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-q9nqbeg",
+      "label": "Clarion F4 (Finger 5 first open)",
+      "targetNote": "F4",
+      "ventHoleId": "hole-hzj3dbn",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-nx0kpij",
+      "label": "Chalumeau C3 (Finger 4 and below open)",
+      "targetNote": "C3",
+      "ventHoleId": "hole-cctkvgp",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-9ixhc77",
+      "label": "Clarion G4 (Finger 4 first open)",
+      "targetNote": "G4",
+      "ventHoleId": "hole-cctkvgp",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-ouvo943",
+      "label": "Chalumeau D3 (Finger 3 and below open)",
+      "targetNote": "D3",
+      "ventHoleId": "hole-o7fp5b0",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-rup5bvo",
+      "label": "Clarion A4 (Finger 3 first open)",
+      "targetNote": "A4",
+      "ventHoleId": "hole-o7fp5b0",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-cyzemv0",
+      "label": "Chalumeau E3 (Finger 2 and below open)",
+      "targetNote": "E3",
+      "ventHoleId": "hole-z2nbyu1",
+      "register": "fundamental",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-9oltvpm",
+      "label": "Clarion B4 (Finger 2 first open)",
+      "targetNote": "B4",
+      "ventHoleId": "hole-z2nbyu1",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-06r38n2",
+      "label": "Chalumeau F3 (Finger 1 first open)",
+      "targetNote": "F3",
+      "ventHoleId": "hole-z2nbyu1",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-f8tw3pw",
+      "label": "Clarion C5 (Finger 1 first open)",
+      "targetNote": "C5",
+      "ventHoleId": "hole-z2nbyu1",
+      "register": "third",
+      "termination": "vent-hole"
+    }
+  ]
+}

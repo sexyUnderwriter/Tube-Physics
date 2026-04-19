@@ -445,6 +445,13 @@ thead th {
   stroke-width: 1;
 }
 
+.hole-pitch-text {
+  fill: #6a3575;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  text-anchor: middle;
+}
+
 .axis-label {
   fill: var(--muted);
   font-family: "IBM Plex Mono", monospace;

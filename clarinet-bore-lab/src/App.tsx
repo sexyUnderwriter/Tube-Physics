@@ -658,6 +658,7 @@ export default function App() {
   const [cockpitShowClarion, setCockpitShowClarion] = useState(true);
   const [intonationShowChalumeau, setIntonationShowChalumeau] = useState(true);
   const [intonationShowClarion, setIntonationShowClarion] = useState(true);
+  const [showHolePitch, setShowHolePitch] = useState(false);
   const [solverStatus, setSolverStatus] = useState("");
   const [solverSolution, setSolverSolution] =
     useState<HoleTriangulationSolution | null>(null);
@@ -2591,6 +2592,14 @@ export default function App() {
         <section className="panel full-width">
           <div className="panel-head">
             <h2>Bore Geometry Visualization</h2>
+            <div className="badge-row">
+              <button
+                type="button"
+                onClick={() => setShowHolePitch((v) => !v)}
+              >
+                {showHolePitch ? "Hide pitch labels" : "Show pitch labels"}
+              </button>
+            </div>
           </div>
           <p className="math">
             Profile view of the modeled air column. Tone-hole markers are positioned by distance
@@ -2632,6 +2641,30 @@ export default function App() {
               )}
 
               {boreSvg.holesOnBore.map((hole) => {
+                const eval_ = results.find((r) => r.id === hole.id);
+
+                // Badge colours matching .badge.good / .badge.warn / .badge.neutral
+                type BadgeKind = "good" | "warn" | "neutral";
+                const badgeKind: BadgeKind = (() => {
+                  if (!showHolePitch || eval_ == null) return "neutral";
+                  return Math.abs(eval_.centsErrorToNearest) <= toleranceCents ? "good" : "warn";
+                })();
+                const badgeColors: Record<BadgeKind, { fill: string; stroke: string; text: string }> = {
+                  good:    { fill: "rgba(21,122,57,0.12)",   stroke: "rgba(21,122,57,0.24)",   text: "#11582f" },
+                  warn:    { fill: "rgba(209,99,42,0.13)",   stroke: "rgba(209,99,42,0.24)",    text: "#8d431b" },
+                  neutral: { fill: "rgba(255,252,247,0.96)", stroke: "rgba(94,45,16,0.18)",     text: "#5e2d10" },
+                };
+                const { fill: boxFill, stroke: boxStroke, text: textFill } = badgeColors[badgeKind];
+
+                const pitchLine = showHolePitch && eval_ != null
+                  ? (() => {
+                      const cents = eval_.centsErrorToNearest;
+                      const sign = cents >= 0 ? "+" : "\u2212";
+                      return `${eval_.nearestNote}  ${sign}${Math.abs(cents).toFixed(1)}\u00a2`;
+                    })()
+                  : null;
+                const boxHeight = pitchLine != null ? 28 : 16;
+                const isBack = hole.labelY > boreSvg.centerY;
                 return (
                   <g key={hole.id}>
                     <line
@@ -2656,15 +2689,26 @@ export default function App() {
                     />
                     <rect
                       x={hole.x - hole.labelWidth / 2}
-                      y={hole.labelY - 11}
+                      y={isBack ? hole.labelY - 5 : hole.labelY - 11}
                       width={hole.labelWidth}
-                      height="16"
+                      height={boxHeight}
                       rx="4"
-                      className="hole-label-box"
+                      fill={boxFill}
+                      stroke={boxStroke}
                     />
-                    <text x={hole.x} y={hole.labelY} className="hole-label">
+                    <text x={hole.x} y={hole.labelY} className="hole-label" fill={textFill}>
                       {hole.label}
                     </text>
+                    {pitchLine != null && (
+                      <text
+                        x={hole.x}
+                        y={hole.labelY + 11}
+                        className="hole-pitch-text"
+                        fill={textFill}
+                      >
+                        {pitchLine}
+                      </text>
+                    )}
                   </g>
                 );
               })}
