@@ -1,0 +1,7 @@
+date,tube_length_mm,tube_id_mm,tube_od_mm,mouthpiece_penetration_mm,measured_frequency_hz,temp_c,target_note,comments
+2026-04-18,351,12.32,15.9,50,196.1,22.22,,Tube 1; 72F; 40% humidity
+2026-04-18,399,12.32,15.9,50,177.2,22.22,,Tube 2; 72F; 40% humidity
+2026-04-18,448,12.32,15.9,50,157.4,22.22,,Tube 3; 72F; 40% humidity
+2026-04-18,500,12.32,15.9,50,144.2,22.22,,Tube 4; 72F; 40% humidity
+2026-04-18,553,12.32,15.9,50,133.3,22.22,,Tube 5; 72F; 40% humidity
+2026-04-18,600,12.32,15.9,50,123.6,22.22,,Tube 6; 72F; 40% humidity

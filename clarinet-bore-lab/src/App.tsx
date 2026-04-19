@@ -268,9 +268,26 @@ const mouthpiecePresets: MouthpiecePreset[] = [
     overallLengthMm: 110,
     sourceUrl: "https://vandoren.fr/en/vandoren-mouthpieces/t6-v16-tenor-saxophone-mouthpiece/",
   },
+  {
+    id: "meyer-tenor-6m-bb",
+    label: "Meyer 6M (Bb Tenor)",
+    instrument: "Tenor sax",
+    // Meyer tenor 6M tip opening is commonly listed as 0.090 in (2.286 mm).
+    openingHundredthMm: 228.6,
+    openingMm: 2.286,
+    facingLength: "Medium",
+    // Keep acoustic insert and shank bore aligned with existing tenor geometry.
+    acousticInsertMm: 24,
+    shankBoreMm: 16.8,
+    // User-provided body length estimate for this black resin/hard rubber model.
+    overallLengthMm: 104,
+    sourceUrl: "https://www.meyer-mouthpieces.com/tenor-saxophone",
+  },
 ];
 
-const defaultMouthpiecePreset = mouthpiecePresets[1];
+const defaultMouthpiecePreset =
+  mouthpiecePresets.find((preset) => preset.id === "meyer-tenor-6m-bb") ??
+  mouthpiecePresets[1];
 
 function findMouthpiecePreset(id: string): MouthpiecePreset | undefined {
   return mouthpiecePresets.find((preset) => preset.id === id);
