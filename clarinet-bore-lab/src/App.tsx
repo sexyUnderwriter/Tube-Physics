@@ -615,6 +615,10 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 export default function App() {
   const [name, setName] = useState("Prototype Clarinet Bore");
   const [tempC, setTempC] = useState(20);
@@ -1350,24 +1354,87 @@ export default function App() {
     setMouthpiece(buildMouthpieceGeometry(preset));
   }
 
-  function saveToTextFile(): void {
+  async function saveToTextFile(): Promise<void> {
     const snapshot = buildCurrentSnapshot();
     const fileText = serializeSnapshot(snapshot);
-    const blob = new Blob([fileText], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
     const safeName = (snapshot.name || "clarinet-model")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    const suggestedName = `${safeName || "clarinet-model"}.txt`;
+
+    type SavePickerWindow = Window & {
+      showSaveFilePicker?: (options?: {
+        suggestedName?: string;
+        excludeAcceptAllOption?: boolean;
+        types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+      }) => Promise<{
+        name?: string;
+        createWritable: () => Promise<{
+          write: (data: string) => Promise<void>;
+          close: () => Promise<void>;
+        }>;
+      }>;
+    };
+
+    const pickerWindow = window as SavePickerWindow;
+    if (typeof pickerWindow.showSaveFilePicker !== "function") {
+      setLoadStatus(
+        "Save As is not supported in this browser. Use Chrome or Edge on localhost/https to choose a location."
+      );
+      return;
+    }
+
+    try {
+      const handle = await pickerWindow.showSaveFilePicker({
+        suggestedName,
+        types: [
+          {
+            description: "Clarinet Bore Lab snapshot",
+            accept: { "text/plain": [".txt"] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(fileText);
+      await writable.close();
+      setLastSavedAt(new Date().toLocaleTimeString());
+      setLoadStatus(`Saved ${handle.name ?? suggestedName}`);
+    } catch (error) {
+      if (isAbortError(error)) {
+        return;
+      }
+      const message =
+        error instanceof DOMException
+          ? `${error.name}: ${error.message}`
+          : "Unknown browser error";
+      setLoadStatus(
+        `Could not open Save As dialog (${message}). Make sure the app is running on localhost/https, then try again in Chrome or Edge.`
+      );
+    }
+  }
+
+  function downloadTextFile(): void {
+    const snapshot = buildCurrentSnapshot();
+    const fileText = serializeSnapshot(snapshot);
+    const safeName = (snapshot.name || "clarinet-model")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const suggestedName = `${safeName || "clarinet-model"}.txt`;
+
+    const blob = new Blob([fileText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${safeName || "clarinet-model"}.txt`;
+    anchor.download = suggestedName;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
+
     setLastSavedAt(new Date().toLocaleTimeString());
-    setLoadStatus(null);
+    setLoadStatus(`Downloaded ${suggestedName}`);
   }
 
   function openTextFileDialog(): void {
@@ -2173,7 +2240,8 @@ export default function App() {
             onChange={handleLoadTextFile}
           />
           <div className="badge-row">
-            <button type="button" onClick={saveToTextFile}>Save to text file</button>
+            <button type="button" onClick={saveToTextFile}>Save as text file</button>
+            <button type="button" onClick={downloadTextFile}>Download text file</button>
             <button type="button" onClick={openTextFileDialog}>Load from text file</button>
             {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
           </div>
