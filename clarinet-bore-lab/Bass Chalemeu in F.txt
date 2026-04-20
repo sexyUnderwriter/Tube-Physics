@@ -65,7 +65,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "zMm": 184.88205879715787,
       "angleDeg": 0,
       "diameterMm": 9,
-      "chimneyMm": 4.598786386601117,
+      "chimneyMm": 4.598816821648429,
       "targetNote": "G2"
     },
     {
@@ -74,7 +74,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "zMm": 301.20525685759725,
       "angleDeg": 0,
       "diameterMm": 5.5,
-      "chimneyMm": 4.352475992987163,
+      "chimneyMm": 4.352532086949869,
       "targetNote": "A2"
     },
     {
@@ -82,7 +82,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Finger 5",
       "zMm": 349.24369352808435,
       "angleDeg": 0,
-      "diameterMm": 7.27319496748454,
+      "diameterMm": 7.273195164875352,
       "chimneyMm": 4.065,
       "targetNote": "A#2"
     },
@@ -91,7 +91,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Finger 4",
       "zMm": 445.4439056379926,
       "angleDeg": 0,
-      "diameterMm": 7.176048199427716,
+      "diameterMm": 7.176146367210463,
       "chimneyMm": 4.065,
       "targetNote": "C3"
     },
@@ -100,7 +100,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Finger 3",
       "zMm": 531.0839476896358,
       "angleDeg": 0,
-      "diameterMm": 7.133206010373789,
+      "diameterMm": 7.134459311272726,
       "chimneyMm": 4.065,
       "targetNote": "D3"
     },
@@ -109,7 +109,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Finger 2",
       "zMm": 602.9878696270772,
       "angleDeg": 0,
-      "diameterMm": 6.852965761133553,
+      "diameterMm": 6.853650007910502,
       "chimneyMm": 4.065,
       "targetNote": "E3"
     },
@@ -118,25 +118,25 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Finger 1",
       "zMm": 642.5761324479823,
       "angleDeg": 0,
-      "diameterMm": 7.101873175467597,
+      "diameterMm": 7.117159420210914,
       "chimneyMm": 4.065,
       "targetNote": "F3"
     },
     {
       "id": "hole-3sym609",
       "label": "Thumb",
-      "zMm": 712.48,
+      "zMm": 687.6827780887163,
       "angleDeg": 0,
-      "diameterMm": 6,
+      "diameterMm": 6.050990741056834,
       "chimneyMm": 4.065,
       "targetNote": "G3"
     },
     {
       "id": "hole-l3pwmky",
       "label": "Front Key",
-      "zMm": 790,
+      "zMm": 756.3150915129247,
       "angleDeg": 0,
-      "diameterMm": 7,
+      "diameterMm": 7.051757615361347,
       "chimneyMm": 3,
       "targetNote": "A3"
     }
@@ -272,9 +272,17 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-utc0s4w",
-      "label": "Fingering 17",
+      "label": "Front Key",
       "targetNote": "A3",
       "ventHoleId": "hole-l3pwmky",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-1wypklj",
+      "label": "Thumb",
+      "targetNote": "G3",
+      "ventHoleId": "hole-3sym609",
       "register": "fundamental",
       "termination": "vent-hole"
     }

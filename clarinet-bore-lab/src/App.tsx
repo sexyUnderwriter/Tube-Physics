@@ -1331,11 +1331,16 @@ export default function App() {
     const segmentLabels = sortedSegs.map((seg, i) => {
       const nextX = i < sortedSegs.length - 1 ? sortedSegs[i + 1].x : rightEdge;
       const midX = (seg.x + nextX) / 2;
-      // Get z-value from segment object for label
       const segmentObj = acousticSegments.find((s) => s.id === seg.id);
-      const zEnd = segmentObj?.zMm ?? 0;
+      const currentZ = segmentObj?.zMm ?? 0;
+      const nextSegObj =
+        i < sortedSegs.length - 1
+          ? acousticSegments.find((s) => s.id === sortedSegs[i + 1].id)
+          : null;
+      const nextZ = nextSegObj?.zMm ?? totalLengthMm;
+      const sectionLength = nextZ - currentZ;
       const labelText = segmentObj
-        ? `${seg.label} (${zEnd.toFixed(0)}mm)`
+        ? `${seg.label} (${sectionLength.toFixed(0)}mm)`
         : seg.label;
       const labelW = Math.max(labelText.length * 6.2 + 10, 30);
       const leftEdge = midX - labelW / 2;
@@ -1473,40 +1478,43 @@ export default function App() {
     };
 
     const pickerWindow = window as SavePickerWindow;
-    if (typeof pickerWindow.showSaveFilePicker !== "function") {
-      setLoadStatus(
-        "Save As is not supported in this browser. Use Chrome or Edge on localhost/https to choose a location."
-      );
-      return;
+    if (typeof pickerWindow.showSaveFilePicker === "function") {
+      try {
+        const handle = await pickerWindow.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "Clarinet Bore Lab snapshot",
+              accept: { "text/plain": [".txt"] },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(fileText);
+        await writable.close();
+        setLastSavedAt(new Date().toLocaleTimeString());
+        setLoadStatus(`Saved ${handle.name ?? suggestedName}`);
+        return;
+      } catch (error) {
+        if (isAbortError(error)) {
+          return;
+        }
+        // Fall through to download fallback on any non-abort error.
+      }
     }
 
-    try {
-      const handle = await pickerWindow.showSaveFilePicker({
-        suggestedName,
-        types: [
-          {
-            description: "Clarinet Bore Lab snapshot",
-            accept: { "text/plain": [".txt"] },
-          },
-        ],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(fileText);
-      await writable.close();
-      setLastSavedAt(new Date().toLocaleTimeString());
-      setLoadStatus(`Saved ${handle.name ?? suggestedName}`);
-    } catch (error) {
-      if (isAbortError(error)) {
-        return;
-      }
-      const message =
-        error instanceof DOMException
-          ? `${error.name}: ${error.message}`
-          : "Unknown browser error";
-      setLoadStatus(
-        `Could not open Save As dialog (${message}). Make sure the app is running on localhost/https, then try again in Chrome or Edge.`
-      );
-    }
+    // Fallback for Safari and other browsers without showSaveFilePicker.
+    const blob = new Blob([fileText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = suggestedName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    setLastSavedAt(new Date().toLocaleTimeString());
+    setLoadStatus(`Downloaded ${suggestedName}`);
   }
 
   function downloadTextFile(): void {
