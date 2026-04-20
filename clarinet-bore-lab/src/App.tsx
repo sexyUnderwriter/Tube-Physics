@@ -3,6 +3,7 @@ import {
   BoreSegment,
   Fingering,
   FingeringTuningSensitivity,
+  HoleEvaluation,
   HoleTriangulationMode,
   HoleTriangulationSolution,
   ToneHole,
@@ -51,6 +52,40 @@ type DrillBit = {
   label: string;
   diameterIn: number;
 };
+
+function estimateMonospaceBadgeWidth(
+  lines: string[],
+  fontSizePx: number,
+  horizontalPaddingPx: number,
+  minWidthPx: number
+): number {
+  const widestLine = lines.reduce((maxWidth, line) => {
+    return Math.max(maxWidth, line.trim().length * fontSizePx * 0.62);
+  }, 0);
+  return Math.max(minWidthPx, widestLine + horizontalPaddingPx * 2);
+}
+
+function buildHolePitchLine(
+  evaluation: HoleEvaluation | undefined,
+  hole: ToneHole,
+  showHolePitch: boolean
+): string | null {
+  if (!showHolePitch || evaluation == null) {
+    return null;
+  }
+
+  const cents =
+    evaluation.centsErrorToTarget !== null
+      ? evaluation.centsErrorToTarget
+      : evaluation.centsErrorToNearest;
+  const noteLabel =
+    evaluation.centsErrorToTarget !== null
+      ? hole.targetNote.trim() || evaluation.nearestNote
+      : evaluation.nearestNote;
+  const sign = cents >= 0 ? "+" : "-";
+
+  return `${noteLabel} ${sign}${Math.abs(cents).toFixed(1)}c`;
+}
 
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1138,9 +1173,9 @@ export default function App() {
   );
   const boreSvg = useMemo(() => {
     const width = 980;
-    const height = 330;
+    const baseHeight = 330;
     const marginX = 24;
-    const centerY = height / 2;
+    const baseCenterY = baseHeight / 2;
     const maxRadius =
       Math.max(...profilePoints.map((point) => point.diameterMm * 0.5), 8) * 1.15;
     const usableHalfHeight = 108;
@@ -1160,37 +1195,27 @@ export default function App() {
 
     const rToSvg = (radiusMm: number): number =>
       (Math.max(radiusMm, 0) / maxRadius) * usableHalfHeight;
-
-    const top = profilePoints.map((point) => {
-      const zMm = Math.max(totalLengthMm - point.xMm, 0);
-      const x = zToSvg(zMm);
-      const y = centerY - rToSvg(point.diameterMm * 0.5);
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    });
-    const bottom = [...profilePoints]
-      .reverse()
-      .map((point) => {
-        const zMm = Math.max(totalLengthMm - point.xMm, 0);
-        const x = zToSvg(zMm);
-        const y = centerY + rToSvg(point.diameterMm * 0.5);
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-      });
-
-    const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
-    const labelLaneHeight = 18;
-    const minLabelGap = 10;
+    const labelLaneHeight = showHolePitch ? 34 : 22;
+    const minLabelGap = showHolePitch ? 14 : 10;
     const topLaneRightEdges: number[] = [];
     const bottomLaneRightEdges: number[] = [];
-    const holesOnBore = [...holes]
+    const holeLayoutDraft = [...holes]
       .sort((a, b) => a.zMm - b.zMm)
       .map((hole) => {
         const x = zToSvg(Math.max(hole.zMm, 0));
         const localRadius = rToSvg(hole.diameterMm * 0.5);
-        const labelWidth = Math.max(hole.label.length * 6.6 + 12, 44);
-        const leftEdge = x - labelWidth / 2;
+        const pitchLine = buildHolePitchLine(resultByHoleId.get(hole.id), hole, showHolePitch);
+        const boxHeight = pitchLine !== null ? 28 : 16;
+        const labelWidth = estimateMonospaceBadgeWidth(
+          pitchLine !== null ? [hole.label, pitchLine] : [hole.label],
+          11,
+          10,
+          52
+        );
         const angle = Number.isFinite(hole.angleDeg) ? hole.angleDeg : 0;
         const isBackHole = Math.abs(Math.abs(angle) - 180) <= 20;
         const laneRightEdges = isBackHole ? bottomLaneRightEdges : topLaneRightEdges;
+        const leftEdge = x - labelWidth / 2;
 
         let laneIndex = 0;
         while (
@@ -1206,19 +1231,68 @@ export default function App() {
           ...hole,
           x,
           localRadius,
+          pitchLine,
+          boxHeight,
           labelWidth,
-          labelY: isBackHole
-            ? centerY + localRadius + 36 + laneIndex * labelLaneHeight
-            : centerY - localRadius - 36 - laneIndex * labelLaneHeight,
-          dotY: isBackHole ? centerY + localRadius + 28 : centerY - localRadius - 28,
-          stemFromY: isBackHole ? centerY + localRadius + 4 : centerY - localRadius - 4,
-          stemToY: isBackHole ? centerY + localRadius + 24 : centerY - localRadius - 24,
-          leaderFromY: isBackHole ? centerY + localRadius + 33 : centerY - localRadius - 33,
-          leaderToY: isBackHole
-            ? centerY + localRadius + 30 + laneIndex * labelLaneHeight
-            : centerY - localRadius - 30 - laneIndex * labelLaneHeight,
+          laneIndex,
+          isBackHole,
         };
       });
+
+    const placeHole = (
+      hole: (typeof holeLayoutDraft)[number],
+      centerY: number
+    ) => {
+      const labelY = hole.isBackHole
+        ? centerY + hole.localRadius + 36 + hole.laneIndex * labelLaneHeight
+        : centerY - hole.localRadius - 36 - hole.laneIndex * labelLaneHeight;
+      const boxY = hole.isBackHole ? labelY - 5 : labelY - 11;
+
+      return {
+        ...hole,
+        labelY,
+        boxY,
+        dotY: hole.isBackHole ? centerY + hole.localRadius + 28 : centerY - hole.localRadius - 28,
+        stemFromY: hole.isBackHole
+          ? centerY + hole.localRadius + 4
+          : centerY - hole.localRadius - 4,
+        stemToY: hole.isBackHole
+          ? centerY + hole.localRadius + 24
+          : centerY - hole.localRadius - 24,
+        leaderFromY: hole.isBackHole
+          ? centerY + hole.localRadius + 33
+          : centerY - hole.localRadius - 33,
+        leaderToY: hole.isBackHole
+          ? centerY + hole.localRadius + 30 + hole.laneIndex * labelLaneHeight
+          : centerY - hole.localRadius - 30 - hole.laneIndex * labelLaneHeight,
+      };
+    };
+
+    const previewHoles = holeLayoutDraft.map((hole) => placeHole(hole, baseCenterY));
+    const minHoleY = previewHoles.reduce((minY, hole) => Math.min(minY, hole.boxY), baseCenterY);
+    const topInset = Math.max(0, 20 - minHoleY);
+    const centerY = baseCenterY + topInset;
+    const holesOnBore = holeLayoutDraft.map((hole) => placeHole(hole, centerY));
+    const holeBottom = holesOnBore.reduce(
+      (maxY, hole) => Math.max(maxY, hole.boxY + hole.boxHeight),
+      centerY + usableHalfHeight
+    );
+
+    const top = profilePoints.map((point) => {
+      const zMm = Math.max(totalLengthMm - point.xMm, 0);
+      const x = zToSvg(zMm);
+      const y = centerY - rToSvg(point.diameterMm * 0.5);
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    });
+    const bottom = [...profilePoints]
+      .reverse()
+      .map((point) => {
+        const zMm = Math.max(totalLengthMm - point.xMm, 0);
+        const x = zToSvg(zMm);
+        const y = centerY + rToSvg(point.diameterMm * 0.5);
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      });
+    const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
 
     // Segment boundary lines – one vertical line per segment at its z position.
     // We clip the line to the bore profile radius at that z so it spans exactly
@@ -1289,7 +1363,11 @@ export default function App() {
 
     // Expand SVG height to fit however many lanes were needed.
     const maxLane = Math.max(...segmentLabels.map((s) => s.lane), 0);
-    const adjustedHeight = laneBaseY + maxLane * laneStep + 18;
+    const adjustedHeight = Math.max(
+      baseHeight + topInset,
+      holeBottom + 24,
+      laneBaseY + maxLane * laneStep + 18
+    );
 
     // Mouthpiece tip polygon: tapers from acoustic endpoint bore diameter to the physical beak tip.
     const tipX0 = zToSvg(totalLengthMm);
@@ -1319,7 +1397,15 @@ export default function App() {
       mouthpieceTip,
       visualTotalMm,
     };
-  }, [acousticSegments, holes, mouthpiece, profilePoints, totalLengthMm]);
+  }, [
+    acousticSegments,
+    holes,
+    mouthpiece,
+    profilePoints,
+    resultByHoleId,
+    showHolePitch,
+    totalLengthMm,
+  ]);
 
   function applySnapshot(saved: DesignSnapshot): void {
     setName(saved.name);
@@ -1631,10 +1717,6 @@ export default function App() {
 
   function sortToneHolesAscendingFromBell(): void {
     setHoles((prev) => [...prev].sort((a, b) => a.zMm - b.zMm));
-  }
-
-  function applyEvenHoleSpacing(): void {
-    setHoles((prev) => evenlySpaceHoles(prev, segments));
   }
 
   function applyEvenHoleSpacing(): void {
@@ -2666,25 +2748,6 @@ export default function App() {
                   neutral: { fill: "rgba(255,252,247,0.96)", stroke: "rgba(94,45,16,0.18)",     text: "#5e2d10" },
                 };
                 const { fill: boxFill, stroke: boxStroke, text: textFill } = badgeColors[badgeKind];
-
-                const pitchLine = showHolePitch && eval_ != null
-                  ? (() => {
-                      const cents =
-                        eval_.centsErrorToTarget !== null
-                          ? eval_.centsErrorToTarget
-                          : eval_.centsErrorToNearest;
-                      const noteLabel =
-                        eval_.centsErrorToTarget !== null
-                          ? hole.targetNote.trim() || eval_.nearestNote
-                          : eval_.nearestNote;
-                      const sign = cents >= 0 ? "+" : "\u2212";
-                      const direction =
-                        Math.abs(cents) <= 0.05 ? "in tune" : cents > 0 ? "sharp" : "flat";
-                      return `${noteLabel}  ${sign}${Math.abs(cents).toFixed(1)} cents (${direction})`;
-                    })()
-                  : null;
-                const boxHeight = pitchLine != null ? 28 : 16;
-                const isBack = hole.labelY > boreSvg.centerY;
                 return (
                   <g key={hole.id}>
                     <line
@@ -2709,9 +2772,9 @@ export default function App() {
                     />
                     <rect
                       x={hole.x - hole.labelWidth / 2}
-                      y={isBack ? hole.labelY - 5 : hole.labelY - 11}
+                      y={hole.boxY}
                       width={hole.labelWidth}
-                      height={boxHeight}
+                      height={hole.boxHeight}
                       rx="4"
                       fill={boxFill}
                       stroke={boxStroke}
@@ -2719,14 +2782,14 @@ export default function App() {
                     <text x={hole.x} y={hole.labelY} className="hole-label" fill={textFill}>
                       {hole.label}
                     </text>
-                    {pitchLine != null && (
+                    {hole.pitchLine != null && (
                       <text
                         x={hole.x}
                         y={hole.labelY + 11}
                         className="hole-pitch-text"
                         fill={textFill}
                       >
-                        {pitchLine}
+                        {hole.pitchLine}
                       </text>
                     )}
                   </g>
