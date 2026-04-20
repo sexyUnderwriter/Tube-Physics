@@ -843,6 +843,13 @@ export default function App() {
     () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings),
     [acousticSegments, holes, tempC, pitchStandardHz, fingerings]
   );
+  const resultByHoleId = useMemo(() => {
+    const map = new Map<string, (typeof results)[number]>();
+    for (const row of results) {
+      map.set(row.id, row);
+    }
+    return map;
+  }, [results]);
   const warnings = useMemo(
     () => spacingWarnings(holes, acousticSegments),
     [holes, acousticSegments]
@@ -2641,13 +2648,17 @@ export default function App() {
               )}
 
               {boreSvg.holesOnBore.map((hole) => {
-                const eval_ = results.find((r) => r.id === hole.id);
+                const eval_ = resultByHoleId.get(hole.id);
 
                 // Badge colours matching .badge.good / .badge.warn / .badge.neutral
                 type BadgeKind = "good" | "warn" | "neutral";
                 const badgeKind: BadgeKind = (() => {
                   if (!showHolePitch || eval_ == null) return "neutral";
-                  return Math.abs(eval_.centsErrorToNearest) <= toleranceCents ? "good" : "warn";
+                  const cents =
+                    eval_.centsErrorToTarget !== null
+                      ? eval_.centsErrorToTarget
+                      : eval_.centsErrorToNearest;
+                  return Math.abs(cents) <= toleranceCents ? "good" : "warn";
                 })();
                 const badgeColors: Record<BadgeKind, { fill: string; stroke: string; text: string }> = {
                   good:    { fill: "rgba(21,122,57,0.12)",   stroke: "rgba(21,122,57,0.24)",   text: "#11582f" },
@@ -2658,9 +2669,18 @@ export default function App() {
 
                 const pitchLine = showHolePitch && eval_ != null
                   ? (() => {
-                      const cents = eval_.centsErrorToNearest;
+                      const cents =
+                        eval_.centsErrorToTarget !== null
+                          ? eval_.centsErrorToTarget
+                          : eval_.centsErrorToNearest;
+                      const noteLabel =
+                        eval_.centsErrorToTarget !== null
+                          ? hole.targetNote.trim() || eval_.nearestNote
+                          : eval_.nearestNote;
                       const sign = cents >= 0 ? "+" : "\u2212";
-                      return `${eval_.nearestNote}  ${sign}${Math.abs(cents).toFixed(1)}\u00a2`;
+                      const direction =
+                        Math.abs(cents) <= 0.05 ? "in tune" : cents > 0 ? "sharp" : "flat";
+                      return `${noteLabel}  ${sign}${Math.abs(cents).toFixed(1)} cents (${direction})`;
                     })()
                   : null;
                 const boxHeight = pitchLine != null ? 28 : 16;
