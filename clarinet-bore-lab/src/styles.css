@@ -374,6 +374,12 @@ thead th {
   stroke-dasharray: 6 6;
 }
 
+.outer-wall-shape {
+  fill: rgba(100, 75, 40, 0.15);
+  stroke: rgba(80, 55, 20, 0.55);
+  stroke-width: 1.5;
+}
+
 .bore-shape {
   fill: rgba(38, 102, 164, 0.19);
   stroke: #2666a4;

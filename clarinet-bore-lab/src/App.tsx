@@ -15,7 +15,6 @@ import {
   predictClosedTubeFundamentalHz,
   parseScientificPitch,
   requiredClosedTubeAcousticLengthMm,
-  sampleBoreProfile,
   scientificPitchToHz,
   evaluateFingerings,
   evaluateToneHoles,
@@ -1167,17 +1166,18 @@ export default function App() {
     );
     return sum / withTargets.length;
   }, [fingeringResults]);
-  const profilePoints = useMemo(
-    () => sampleBoreProfile(acousticSegments, 140),
-    [acousticSegments]
-  );
   const boreSvg = useMemo(() => {
     const width = 980;
     const baseHeight = 330;
     const marginX = 24;
     const baseCenterY = baseHeight / 2;
     const maxRadius =
-      Math.max(...profilePoints.map((point) => point.diameterMm * 0.5), 8) * 1.15;
+      Math.max(
+        ...acousticSegments.map((s) =>
+          ((s.outerDiameterMm != null ? s.outerDiameterMm : s.diameterMm) * 0.5)
+        ),
+        8
+      ) * 1.15;
     const usableHalfHeight = 108;
 
     // Physical extent beyond acoustic endpoint uses the full mouthpiece length.
@@ -1278,21 +1278,57 @@ export default function App() {
       centerY + usableHalfHeight
     );
 
-    const top = profilePoints.map((point) => {
-      const zMm = Math.max(totalLengthMm - point.xMm, 0);
-      const x = zToSvg(zMm);
-      const y = centerY - rToSvg(point.diameterMm * 0.5);
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    });
-    const bottom = [...profilePoints]
-      .reverse()
-      .map((point) => {
-        const zMm = Math.max(totalLengthMm - point.xMm, 0);
+    // Build a closed polygon from segment control points. When two adjacent segments
+    // share the same z position (within 0.5 mm) but different diameters, two vertices
+    // are inserted at the same x coordinate so the bore wall makes a 90-degree step
+    // rather than a diagonal convergence.
+    const buildSegmentPolygon = (
+      controlPts: Array<{ zMm: number; diameterMm: number }>
+    ): string => {
+      const STEP_THRESHOLD_MM = 0.5;
+      const pts: Array<{ zMm: number; diameterMm: number }> = [];
+      let i = 0;
+      while (i < controlPts.length) {
+        pts.push(controlPts[i]);
+        const next = i + 1 < controlPts.length ? controlPts[i + 1] : null;
+        if (
+          next !== null &&
+          Math.abs(next.zMm - controlPts[i].zMm) < STEP_THRESHOLD_MM
+        ) {
+          // Step boundary: push the new diameter at the same x before advancing.
+          pts.push(next);
+          i += 2;
+        } else {
+          i += 1;
+        }
+      }
+      // Top edge traces right→left (mouthpiece to bell).
+      const topPts = [...pts].reverse().map(({ zMm, diameterMm }) => {
         const x = zToSvg(zMm);
-        const y = centerY + rToSvg(point.diameterMm * 0.5);
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
+        const r = rToSvg(diameterMm * 0.5);
+        return `${x.toFixed(2)},${(centerY - r).toFixed(2)}`;
       });
-    const polygon = `${top.join(" ")} ${bottom.join(" ")}`;
+      // Bottom edge traces left→right (bell to mouthpiece).
+      const botPts = pts.map(({ zMm, diameterMm }) => {
+        const x = zToSvg(zMm);
+        const r = rToSvg(diameterMm * 0.5);
+        return `${x.toFixed(2)},${(centerY + r).toFixed(2)}`;
+      });
+      return `${topPts.join(" ")} ${botPts.join(" ")}`;
+    };
+
+    const innerControlPts = [...acousticSegments]
+      .sort((a, b) => a.zMm - b.zMm)
+      .map((s) => ({ zMm: s.zMm, diameterMm: s.diameterMm }));
+    const polygon = buildSegmentPolygon(innerControlPts);
+
+    const outerControlPts = [...acousticSegments]
+      .filter((s) => s.outerDiameterMm !== undefined && s.outerDiameterMm !== null)
+      .sort((a, b) => a.zMm - b.zMm)
+      .map((s) => ({ zMm: s.zMm, diameterMm: s.outerDiameterMm! }));
+    const outerPolygon = outerControlPts.length >= 2
+      ? buildSegmentPolygon(outerControlPts)
+      : null;
 
     // Segment boundary lines – one vertical line per segment at its z position.
     // We clip the line to the bore profile radius at that z so it spans exactly
@@ -1393,6 +1429,7 @@ export default function App() {
       height: adjustedHeight,
       centerY,
       polygon,
+      outerPolygon,
       holesOnBore,
       segmentLines,
       segmentLabels,
@@ -1406,7 +1443,6 @@ export default function App() {
     acousticSegments,
     holes,
     mouthpiece,
-    profilePoints,
     resultByHoleId,
     showHolePitch,
     totalLengthMm,
@@ -2732,6 +2768,9 @@ export default function App() {
                 />
               ))}
 
+              {boreSvg.outerPolygon !== null && (
+                <polygon points={boreSvg.outerPolygon} className="outer-wall-shape" />
+              )}
               <polygon points={boreSvg.polygon} className="bore-shape" />
               {boreSvg.mouthpieceTip !== null && (
                 <polygon points={boreSvg.mouthpieceTip} className="mouthpiece-shape" />
