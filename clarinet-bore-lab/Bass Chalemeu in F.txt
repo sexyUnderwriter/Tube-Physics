@@ -62,7 +62,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-ol4e7ux",
       "label": "Finger 7",
-      "zMm": 226.8669870587032,
+      "zMm": 184.88205879715787,
       "angleDeg": 0,
       "diameterMm": 9,
       "chimneyMm": 4.598786386601117,
@@ -71,7 +71,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-yjsrcal",
       "label": "Finger 6",
-      "zMm": 376.98842615369705,
+      "zMm": 301.20525685759725,
       "angleDeg": 0,
       "diameterMm": 5.5,
       "chimneyMm": 4.352475992987163,
@@ -80,7 +80,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-y413ezt",
       "label": "Finger 5",
-      "zMm": 448.86064839718773,
+      "zMm": 349.24369352808435,
       "angleDeg": 0,
       "diameterMm": 7.27319496748454,
       "chimneyMm": 4.065,
@@ -89,7 +89,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-hzj3dbn",
       "label": "Finger 4",
-      "zMm": 577.0161338522802,
+      "zMm": 445.4439056379926,
       "angleDeg": 0,
       "diameterMm": 7.176048199427716,
       "chimneyMm": 4.065,
@@ -98,7 +98,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-cctkvgp",
       "label": "Finger 3",
-      "zMm": 691.1935085687628,
+      "zMm": 531.0839476896358,
       "angleDeg": 0,
       "diameterMm": 7.133206010373789,
       "chimneyMm": 4.065,
@@ -107,7 +107,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-o7fp5b0",
       "label": "Finger 2",
-      "zMm": 786.3749082290533,
+      "zMm": 602.9878696270772,
       "angleDeg": 0,
       "diameterMm": 6.852965761133553,
       "chimneyMm": 4.065,
@@ -116,34 +116,34 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-z2nbyu1",
       "label": "Finger 1",
-      "zMm": 839.5580053756674,
+      "zMm": 642.5761324479823,
       "angleDeg": 0,
-      "diameterMm": 8.601873175467597,
+      "diameterMm": 7.101873175467597,
       "chimneyMm": 4.065,
       "targetNote": "F3"
     },
     {
       "id": "hole-3sym609",
       "label": "Thumb",
-      "zMm": 924,
+      "zMm": 712.48,
       "angleDeg": 0,
-      "diameterMm": 7.055693777003383,
+      "diameterMm": 6,
       "chimneyMm": 4.065,
-      "targetNote": "D3"
+      "targetNote": "G3"
     },
     {
-      "id": "hole-xzo0uht",
-      "label": "Vent",
-      "zMm": 1018.4570936132383,
+      "id": "hole-l3pwmky",
+      "label": "Front Key",
+      "zMm": 790,
       "angleDeg": 0,
-      "diameterMm": 2.3585203126064567,
+      "diameterMm": 7,
       "chimneyMm": 3,
-      "targetNote": "E3"
+      "targetNote": "A3"
     }
   ],
   "fingerings": [
     {
-      "id": "fing-y8k0j02",
+      "id": "fing-esrz6s6",
       "label": "All covered F2",
       "targetNote": "F2",
       "ventHoleId": "hole-ol4e7ux",
@@ -151,7 +151,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "bell"
     },
     {
-      "id": "fing-bbvx879",
+      "id": "fing-zdq7obg",
       "label": "Clarion C4 (all covered base)",
       "targetNote": "C4",
       "ventHoleId": "hole-ol4e7ux",
@@ -159,7 +159,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "bell"
     },
     {
-      "id": "fing-lwuoxt7",
+      "id": "fing-pbguhtb",
       "label": "Chalumeau G2 (Finger 7 and below open)",
       "targetNote": "G2",
       "ventHoleId": "hole-yjsrcal",
@@ -167,7 +167,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-5api07y",
+      "id": "fing-yeil0b0",
       "label": "Clarion D4 (Finger 7 first open)",
       "targetNote": "D4",
       "ventHoleId": "hole-yjsrcal",
@@ -175,7 +175,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-rmltlol",
+      "id": "fing-ju669si",
       "label": "Chalumeau A2 (Finger 6 and below open)",
       "targetNote": "A2",
       "ventHoleId": "hole-y413ezt",
@@ -183,7 +183,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-ga175t3",
+      "id": "fing-zyu3lsp",
       "label": "Clarion E4 (Finger 6 first open)",
       "targetNote": "E4",
       "ventHoleId": "hole-y413ezt",
@@ -191,7 +191,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-siw5g48",
+      "id": "fing-sisltqi",
       "label": "Chalumeau A#2 (Finger 5 and below open)",
       "targetNote": "A#2",
       "ventHoleId": "hole-hzj3dbn",
@@ -199,7 +199,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-2l0yxc5",
+      "id": "fing-we1au3n",
       "label": "Clarion F4 (Finger 5 first open)",
       "targetNote": "F4",
       "ventHoleId": "hole-hzj3dbn",
@@ -207,7 +207,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-n54px1z",
+      "id": "fing-686cirv",
       "label": "Chalumeau C3 (Finger 4 and below open)",
       "targetNote": "C3",
       "ventHoleId": "hole-cctkvgp",
@@ -215,7 +215,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-wxfyq70",
+      "id": "fing-011s6ku",
       "label": "Clarion G4 (Finger 4 first open)",
       "targetNote": "G4",
       "ventHoleId": "hole-cctkvgp",
@@ -223,7 +223,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-ckwv0px",
+      "id": "fing-jtbdbuy",
       "label": "Chalumeau D3 (Finger 3 and below open)",
       "targetNote": "D3",
       "ventHoleId": "hole-o7fp5b0",
@@ -231,7 +231,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-0g8xlya",
+      "id": "fing-s1z9ulm",
       "label": "Clarion A4 (Finger 3 first open)",
       "targetNote": "A4",
       "ventHoleId": "hole-o7fp5b0",
@@ -239,7 +239,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-gg9x6xa",
+      "id": "fing-xppanex",
       "label": "Chalumeau E3 (Finger 2 and below open)",
       "targetNote": "E3",
       "ventHoleId": "hole-z2nbyu1",
@@ -247,7 +247,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-q6ahbf2",
+      "id": "fing-mryd2x5",
       "label": "Clarion B4 (Finger 2 first open)",
       "targetNote": "B4",
       "ventHoleId": "hole-z2nbyu1",
@@ -255,7 +255,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "below-open-vent-closed"
     },
     {
-      "id": "fing-q5gl8ro",
+      "id": "fing-9cdfx9e",
       "label": "Chalumeau F3 (Finger 1 first open)",
       "targetNote": "F3",
       "ventHoleId": "hole-z2nbyu1",
@@ -263,7 +263,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "termination": "vent-hole"
     },
     {
-      "id": "fing-f5lcfq6",
+      "id": "fing-r6zbs3t",
       "label": "Clarion C5 (Finger 1 first open)",
       "targetNote": "C5",
       "ventHoleId": "hole-z2nbyu1",
