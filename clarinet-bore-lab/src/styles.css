@@ -423,15 +423,21 @@ thead th {
   stroke-width: 1;
 }
 
-.hole-stem {
-  stroke: rgba(209, 99, 42, 0.85);
-  stroke-width: 1.6;
+.hole-chimney {
+  stroke: rgba(209, 99, 42, 0.9);
+  stroke-linecap: round;
 }
 
-.hole-dot {
+.hole-opening {
   fill: #d1632a;
   stroke: #ffffff;
-  stroke-width: 1.5;
+  stroke-width: 1.2;
+}
+
+.hole-aperture {
+  fill: rgba(253, 171, 128, 0.8);
+  stroke: rgba(94, 45, 16, 0.42);
+  stroke-width: 0.9;
 }
 
 .hole-label {

@@ -1220,8 +1220,20 @@ export default function App() {
     const holeLayoutDraft = [...holes]
       .sort((a, b) => a.zMm - b.zMm)
       .map((hole) => {
-        const x = zToSvg(Math.max(hole.zMm, 0));
-        const localRadius = rToSvg(hole.diameterMm * 0.5);
+        const clampedZ = Math.min(totalLengthMm, Math.max(0, hole.zMm));
+        const x = zToSvg(clampedZ);
+        const holeDistanceMm = totalLengthMm - clampedZ;
+        const localBoreMm = diameterAtMm(acousticSegments, holeDistanceMm);
+        const localRadius = rToSvg(localBoreMm * 0.5);
+        const drillAngleDeg = Math.max(-75, Math.min(75, hole.drillAngleDeg ?? 0));
+        const phi = (drillAngleDeg * Math.PI) / 180;
+        const chimneyMm = Math.max(hole.chimneyMm, 0);
+        const chimneyRadialMm = chimneyMm * Math.cos(phi);
+        const chimneyAxialMm = -chimneyMm * Math.sin(phi);
+        const chimneyDx = zToSvg(clampedZ + chimneyAxialMm) - x;
+        const chimneyDy = rToSvg(chimneyRadialMm);
+        const chimneyStrokeWidth = Math.max(1.6, Math.min(8.5, rToSvg(hole.diameterMm * 0.5) * 2));
+        const openingRadius = Math.max(2.2, Math.min(5.2, chimneyStrokeWidth * 0.48));
         const pitchLine = buildHolePitchLine(resultByHoleId.get(hole.id), hole, showHolePitch);
         const boxHeight = pitchLine !== null ? 28 : 16;
         const labelWidth = estimateMonospaceBadgeWidth(
@@ -1249,6 +1261,10 @@ export default function App() {
           ...hole,
           x,
           localRadius,
+          chimneyDx,
+          chimneyDy,
+          chimneyStrokeWidth,
+          openingRadius,
           pitchLine,
           boxHeight,
           labelWidth,
@@ -1261,28 +1277,31 @@ export default function App() {
       hole: (typeof holeLayoutDraft)[number],
       centerY: number
     ) => {
+      const chimneySign = hole.isBackHole ? 1 : -1;
+      const chimneyInnerY = centerY + chimneySign * hole.localRadius;
+      const chimneyOuterX = hole.x + hole.chimneyDx;
+      const chimneyOuterY = chimneyInnerY + chimneySign * hole.chimneyDy;
       const labelY = hole.isBackHole
-        ? centerY + hole.localRadius + 36 + hole.laneIndex * labelLaneHeight
-        : centerY - hole.localRadius - 36 - hole.laneIndex * labelLaneHeight;
+        ? chimneyOuterY + 22 + hole.laneIndex * labelLaneHeight
+        : chimneyOuterY - 22 - hole.laneIndex * labelLaneHeight;
       const boxY = hole.isBackHole ? labelY - 5 : labelY - 11;
 
       return {
         ...hole,
         labelY,
         boxY,
-        dotY: hole.isBackHole ? centerY + hole.localRadius + 28 : centerY - hole.localRadius - 28,
-        stemFromY: hole.isBackHole
-          ? centerY + hole.localRadius + 4
-          : centerY - hole.localRadius - 4,
-        stemToY: hole.isBackHole
-          ? centerY + hole.localRadius + 24
-          : centerY - hole.localRadius - 24,
+        chimneyInnerX: hole.x,
+        chimneyInnerY,
+        chimneyOuterX,
+        chimneyOuterY,
+        leaderFromX: chimneyOuterX,
         leaderFromY: hole.isBackHole
-          ? centerY + hole.localRadius + 33
-          : centerY - hole.localRadius - 33,
+          ? chimneyOuterY + hole.openingRadius + 3
+          : chimneyOuterY - hole.openingRadius - 3,
+        leaderToX: hole.x,
         leaderToY: hole.isBackHole
-          ? centerY + hole.localRadius + 30 + hole.laneIndex * labelLaneHeight
-          : centerY - hole.localRadius - 30 - hole.laneIndex * labelLaneHeight,
+          ? chimneyOuterY + 15 + hole.laneIndex * labelLaneHeight
+          : chimneyOuterY - 15 - hole.laneIndex * labelLaneHeight,
       };
     };
 
@@ -2840,22 +2859,29 @@ export default function App() {
                 return (
                   <g key={hole.id}>
                     <line
-                      x1={hole.x}
-                      y1={hole.stemFromY}
-                      x2={hole.x}
-                      y2={hole.stemToY}
-                      className="hole-stem"
+                      x1={hole.chimneyInnerX}
+                      y1={hole.chimneyInnerY}
+                      x2={hole.chimneyOuterX}
+                      y2={hole.chimneyOuterY}
+                      className="hole-chimney"
+                      strokeWidth={hole.chimneyStrokeWidth}
                     />
                     <circle
-                      cx={hole.x}
-                      cy={hole.dotY}
-                      r="5"
-                      className="hole-dot"
+                      cx={hole.chimneyInnerX}
+                      cy={hole.chimneyInnerY}
+                      r={Math.max(1.4, hole.openingRadius * 0.58)}
+                      className="hole-aperture"
+                    />
+                    <circle
+                      cx={hole.chimneyOuterX}
+                      cy={hole.chimneyOuterY}
+                      r={hole.openingRadius}
+                      className="hole-opening"
                     />
                     <line
-                      x1={hole.x}
+                      x1={hole.leaderFromX}
                       y1={hole.leaderFromY}
-                      x2={hole.x}
+                      x2={hole.leaderToX}
                       y2={hole.leaderToY}
                       className="hole-label-leader"
                     />
