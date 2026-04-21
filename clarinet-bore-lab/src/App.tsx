@@ -136,6 +136,7 @@ const initialHoles: ToneHole[] = [
     label: "Vent",
     zMm: 490,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 2.2,
     chimneyMm: 2.8,
     targetNote: "B4",
@@ -145,6 +146,7 @@ const initialHoles: ToneHole[] = [
     label: "Thumb",
     zMm: 430,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.2,
     chimneyMm: 3.1,
     targetNote: "G4",
@@ -154,6 +156,7 @@ const initialHoles: ToneHole[] = [
     label: "Front A",
     zMm: 444,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 4.0,
     chimneyMm: 2.3,
     targetNote: "A4",
@@ -163,6 +166,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 1",
     zMm: 404,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 7.8,
     chimneyMm: 3.0,
     targetNote: "A4",
@@ -172,6 +176,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 2",
     zMm: 376,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.0,
     chimneyMm: 3.0,
     targetNote: "G#4",
@@ -181,6 +186,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 3",
     zMm: 348,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.1,
     chimneyMm: 3.0,
     targetNote: "G4",
@@ -190,6 +196,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 4",
     zMm: 316,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.3,
     chimneyMm: 3.0,
     targetNote: "F#4",
@@ -199,6 +206,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 5",
     zMm: 282,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "F4",
@@ -208,6 +216,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 6",
     zMm: 246,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.4,
     chimneyMm: 3.0,
     targetNote: "E4",
@@ -217,6 +226,7 @@ const initialHoles: ToneHole[] = [
     label: "Finger 7",
     zMm: 208,
     angleDeg: 0,
+    drillAngleDeg: 0,
     diameterMm: 8.5,
     chimneyMm: 3.0,
     targetNote: "D4",
@@ -557,6 +567,11 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
         "angleDeg" in hole && typeof hole.angleDeg === "number" && Number.isFinite(hole.angleDeg)
           ? normalizeHoleAngleDeg(hole.angleDeg)
           : 0;
+      const rawDrill =
+        "drillAngleDeg" in hole && typeof (hole as {drillAngleDeg?: unknown}).drillAngleDeg === "number"
+          ? (hole as {drillAngleDeg: number}).drillAngleDeg
+          : 0;
+      const drillAngleDeg = Math.min(75, Math.max(-75, Number.isFinite(rawDrill) ? rawDrill : 0));
 
       if ("zMm" in hole && Number.isFinite(hole.zMm)) {
         return {
@@ -564,6 +579,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
           label: hole.label,
           zMm: hole.zMm,
           angleDeg,
+          drillAngleDeg,
           diameterMm: hole.diameterMm,
           chimneyMm: hole.chimneyMm,
           targetNote: hole.targetNote,
@@ -575,6 +591,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
           label: hole.label,
           zMm: Math.max(baseLengthMm - hole.positionMm, 0),
           angleDeg,
+          drillAngleDeg,
           diameterMm: hole.diameterMm,
           chimneyMm: hole.chimneyMm,
           targetNote: hole.targetNote,
@@ -585,6 +602,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
         label: hole.label,
         zMm: 0,
         angleDeg,
+        drillAngleDeg,
         diameterMm: hole.diameterMm,
         chimneyMm: hole.chimneyMm,
         targetNote: hole.targetNote,
@@ -1746,6 +1764,11 @@ export default function App() {
         return Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
       }
 
+      if (key === "drillAngleDeg") {
+        const numeric = Number(value);
+        return Math.min(75, Math.max(-75, Number.isFinite(numeric) ? numeric : 0));
+      }
+
       if (key === "angleDeg") {
         const numeric = Number(value);
         return normalizeHoleAngleDeg(Number.isFinite(numeric) ? numeric : 0);
@@ -2589,6 +2612,7 @@ export default function App() {
                       label: `H${prev.length + 1}`,
                       zMm: Math.max(180, prev.length * 36 + 180),
                       angleDeg: 0,
+                      drillAngleDeg: 0,
                       diameterMm: 7,
                       chimneyMm: 3,
                       targetNote: "",
@@ -2609,6 +2633,12 @@ export default function App() {
             Circumferential location uses degrees from the front centerline: front = 0, back =
             -180, side keys = +/-90.
           </p>
+          <p className="math">
+            Drill angle (axial tilt): 0° = perpendicular to the bore. Positive = tilted toward
+            the mouthpiece, which shifts the outer opening toward the bell so fingers can reach
+            more easily. The model corrects for the longer through-wall path, the elliptical
+            bore aperture, and the shifted acoustic center. Clamped to ±75°.
+          </p>
 
           <table>
             <thead>
@@ -2616,6 +2646,7 @@ export default function App() {
                 <th>Label</th>
                 <th>z from bell (mm)</th>
                 <th>Angle (deg)</th>
+                <th>Drill (deg)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
                 <th>Wall (mm)</th>
@@ -2653,6 +2684,17 @@ export default function App() {
                           normalizeHoleAngleDeg(Number(e.target.value))
                         )
                       }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="1"
+                      min={-75}
+                      max={75}
+                      value={hole.drillAngleDeg ?? 0}
+                      title="Axial drill angle: 0 = perpendicular, positive = tilted toward mouthpiece"
+                      onChange={(e) => updateHole(hole.id, "drillAngleDeg", Number(e.target.value))}
                     />
                   </td>
                   <td>

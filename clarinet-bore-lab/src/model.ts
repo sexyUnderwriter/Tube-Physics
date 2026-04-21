@@ -11,6 +11,10 @@ export type ToneHole = {
   label: string;
   zMm: number;
   angleDeg: number;
+  /** Axial drill angle in degrees. 0 = perpendicular to bore axis.
+   *  Positive = tilted toward mouthpiece (outer opening shifts toward bell,
+   *  inner acoustic center shifts toward mouthpiece). Clamped to ±75°. */
+  drillAngleDeg?: number;
   diameterMm: number;
   chimneyMm: number;
   targetNote: string;
@@ -277,20 +281,32 @@ function centsError(actualHz: number, targetHz: number): number {
   return 1200 * Math.log2(actualHz / targetHz);
 }
 
-function effectiveLengthForHole(hole: ToneHole, localBoreMm: number): number {
+function effectiveLengthForHole(
+  hole: ToneHole,
+  localBoreMm: number,
+  acousticZMm: number,
+  drillAngleDeg: number
+): number {
   const rb = Math.max(localBoreMm * 0.5, 0.5);
   const rh = Math.max(hole.diameterMm * 0.5, 0.3);
   const chimney = Math.max(hole.chimneyMm, 0.1);
 
+  // Oblique drilling corrections:
+  // - Drill path through the wall is longer by 1/cos(φ)
+  // - Bore-side aperture is an ellipse with area π·rh²/cos(φ)
+  const phi = (drillAngleDeg * Math.PI) / 180;
+  const cosφ = Math.max(Math.cos(phi), 0.1); // guard against ≥90°
+  const obliqueChimney = chimney / cosφ;
+  const obliqueHoleArea = Math.PI * rh * rh / cosφ;
+
   const boreArea = Math.PI * rb * rb;
-  const holeArea = Math.PI * rh * rh;
 
   // Use a Keefe-style effective chimney, then add a partial contribution from
   // the downstream tube below the open hole. This better matches large clarinet
   // finger holes than the previous inertance-only approximation.
-  const effectiveChimneyMm = chimney + 0.47 * rh + 0.821 * rh;
-  const holeShuntTermMm = (boreArea / holeArea) * effectiveChimneyMm;
-  const downstreamLoadTermMm = hole.zMm * (holeArea / (boreArea + holeArea));
+  const effectiveChimneyMm = obliqueChimney + 0.47 * rh + 0.821 * rh;
+  const holeShuntTermMm = (boreArea / obliqueHoleArea) * effectiveChimneyMm;
+  const downstreamLoadTermMm = acousticZMm * (obliqueHoleArea / (boreArea + obliqueHoleArea));
   return holeShuntTermMm + downstreamLoadTermMm;
 }
 
@@ -350,9 +366,16 @@ function fundamentalFromHoleTermination(
   hole: ToneHole,
   cMs: number
 ): number {
-  const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+  const drillAngleDeg = hole.drillAngleDeg ?? 0;
+  const nominalDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+  const nominalBoreMm = diameterAtMm(segments, nominalDistanceMm);
+  const phi = (drillAngleDeg * Math.PI) / 180;
+  // Acoustic center of the bore-wall intersection shifts toward the mouthpiece
+  // (higher z) by rb·tan(φ) when the hole is tilted toward the mouthpiece.
+  const acousticZMm = hole.zMm + nominalBoreMm * 0.5 * Math.tan(phi);
+  const holeDistanceMm = distanceFromMouthpieceMm(segments, acousticZMm);
   const localBoreMm = diameterAtMm(segments, holeDistanceMm);
-  const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
+  const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm, acousticZMm, drillAngleDeg);
   return frequencyFromQuarterWave(effectiveLengthMm, cMs);
 }
 
@@ -619,12 +642,17 @@ export function evaluateToneHoles(
   return [...holes]
     .sort((a, b) => a.zMm - b.zMm)
     .map((hole) => {
-      const holeDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+      const drillAngleDeg = hole.drillAngleDeg ?? 0;
+      const nominalDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
+      const nominalBoreMm = diameterAtMm(segments, nominalDistanceMm);
+      const phi = (drillAngleDeg * Math.PI) / 180;
+      const acousticZMm = hole.zMm + nominalBoreMm * 0.5 * Math.tan(phi);
+      const holeDistanceMm = distanceFromMouthpieceMm(segments, acousticZMm);
       const localBoreMm = diameterAtMm(segments, holeDistanceMm);
-      const outerDia = outerDiameterAtMm(segments, holeDistanceMm);
+      const outerDia = outerDiameterAtMm(segments, nominalDistanceMm);
       const wallThicknessMm =
         outerDia !== null ? Math.max(0, (outerDia - localBoreMm) / 2) : null;
-      const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm);
+      const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm, acousticZMm, drillAngleDeg);
       const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
       const thirdHz = oddHarmonic(fundamentalHz, 2);
 
