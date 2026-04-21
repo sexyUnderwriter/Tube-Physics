@@ -135,6 +135,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Vent",
     zMm: 490,
+    outerZMm: 490,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 2.2,
@@ -145,6 +147,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Thumb",
     zMm: 430,
+    outerZMm: 430,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.2,
@@ -155,6 +159,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Front A",
     zMm: 444,
+    outerZMm: 444,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 4.0,
@@ -165,6 +171,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 1",
     zMm: 404,
+    outerZMm: 404,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 7.8,
@@ -175,6 +183,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 2",
     zMm: 376,
+    outerZMm: 376,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.0,
@@ -185,6 +195,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 3",
     zMm: 348,
+    outerZMm: 348,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.1,
@@ -195,6 +207,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 4",
     zMm: 316,
+    outerZMm: 316,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.3,
@@ -205,6 +219,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 5",
     zMm: 282,
+    outerZMm: 282,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.4,
@@ -215,6 +231,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 6",
     zMm: 246,
+    outerZMm: 246,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.4,
@@ -225,6 +243,8 @@ const initialHoles: ToneHole[] = [
     id: makeId("hole"),
     label: "Finger 7",
     zMm: 208,
+    outerZMm: 208,
+    lockInnerOuterZ: true,
     angleDeg: 0,
     drillAngleDeg: 0,
     diameterMm: 8.5,
@@ -572,12 +592,23 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
           ? (hole as {drillAngleDeg: number}).drillAngleDeg
           : 0;
       const drillAngleDeg = Math.min(75, Math.max(-75, Number.isFinite(rawDrill) ? rawDrill : 0));
+      const rawOuterZ =
+        "outerZMm" in hole && typeof (hole as {outerZMm?: unknown}).outerZMm === "number"
+          ? (hole as {outerZMm: number}).outerZMm
+          : null;
+      const rawLockInnerOuterZ =
+        "lockInnerOuterZ" in hole && typeof (hole as {lockInnerOuterZ?: unknown}).lockInnerOuterZ === "boolean"
+          ? (hole as {lockInnerOuterZ: boolean}).lockInnerOuterZ
+          : true;
 
       if ("zMm" in hole && Number.isFinite(hole.zMm)) {
+        const innerZMm = Math.max(hole.zMm, 0);
         return {
           id: hole.id,
           label: hole.label,
-          zMm: hole.zMm,
+          zMm: innerZMm,
+          outerZMm: rawOuterZ !== null && Number.isFinite(rawOuterZ) ? rawOuterZ : innerZMm,
+          lockInnerOuterZ: rawLockInnerOuterZ,
           angleDeg,
           drillAngleDeg,
           diameterMm: hole.diameterMm,
@@ -586,10 +617,13 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
         };
       }
       if ("positionMm" in hole && Number.isFinite(hole.positionMm)) {
+        const innerZMm = Math.max(baseLengthMm - hole.positionMm, 0);
         return {
           id: hole.id,
           label: hole.label,
-          zMm: Math.max(baseLengthMm - hole.positionMm, 0),
+          zMm: innerZMm,
+          outerZMm: rawOuterZ !== null && Number.isFinite(rawOuterZ) ? rawOuterZ : innerZMm,
+          lockInnerOuterZ: rawLockInnerOuterZ,
           angleDeg,
           drillAngleDeg,
           diameterMm: hole.diameterMm,
@@ -601,6 +635,8 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
         id: hole.id,
         label: hole.label,
         zMm: 0,
+        outerZMm: 0,
+        lockInnerOuterZ: true,
         angleDeg,
         drillAngleDeg,
         diameterMm: hole.diameterMm,
@@ -1053,11 +1089,17 @@ export default function App() {
     setHoles((prev) =>
       prev.map((hole) =>
         hole.id === solverSolution.holeId
-          ? {
-              ...hole,
-              zMm: Math.max(solverSolution.solvedZMm, 0),
-              diameterMm: Math.max(solverSolution.solvedDiameterMm, 0),
-            }
+          ? normalizeHoleInnerOuterGeometry(
+              {
+                ...hole,
+                diameterMm: Math.max(solverSolution.solvedDiameterMm, 0),
+              },
+              Math.max(solverSolution.solvedZMm, 0),
+              hole.lockInnerOuterZ ?? true
+                ? Math.max(solverSolution.solvedZMm, 0)
+                : hole.outerZMm ?? hole.zMm,
+              hole.lockInnerOuterZ ?? true
+            )
           : hole
       )
     );
@@ -1772,32 +1814,119 @@ export default function App() {
     });
   }
 
+  function estimateWallThicknessAtZMm(zMm: number): number | null {
+    const zClamped = Math.min(Math.max(zMm, 0), Math.max(totalLengthMm, 0));
+    const distanceFromMouthpieceMm = Math.max(totalLengthMm - zClamped, 0);
+    const innerDia = diameterAtMm(acousticSegments, distanceFromMouthpieceMm);
+    const outerDia = outerDiameterAtMm(acousticSegments, distanceFromMouthpieceMm);
+    if (outerDia !== null && Number.isFinite(outerDia)) {
+      return Math.max((outerDia - innerDia) * 0.5, 0.2);
+    }
+    return null;
+  }
+
+  function normalizeHoleInnerOuterGeometry(
+    hole: ToneHole,
+    nextInnerZMm: number,
+    nextOuterZMm: number,
+    nextLock: boolean
+  ): ToneHole {
+    const zMax = Math.max(totalLengthMm, 0);
+    const innerZMm = Math.min(Math.max(nextInnerZMm, 0), zMax);
+    const unlockedOuterZMm = Math.min(Math.max(nextOuterZMm, 0), zMax);
+    const outerZMm = nextLock ? innerZMm : unlockedOuterZMm;
+
+    const wallMm = estimateWallThicknessAtZMm(innerZMm);
+    const dzMm = innerZMm - outerZMm;
+    const maxAvailableChimneyMm = wallMm !== null ? Math.hypot(wallMm, dzMm) : Number.POSITIVE_INFINITY;
+    const minRequiredChimneyMm = wallMm !== null ? maxAvailableChimneyMm : 0.1;
+    const chimneyMm = Math.min(
+      Math.max(hole.chimneyMm, minRequiredChimneyMm, 0.1),
+      maxAvailableChimneyMm
+    );
+
+    const ratio = chimneyMm > 0 ? dzMm / chimneyMm : 0;
+    const maxSin = Math.sin((75 * Math.PI) / 180);
+    const clampedRatio = Math.max(-maxSin, Math.min(maxSin, ratio));
+    const drillAngleDeg = (Math.asin(clampedRatio) * 180) / Math.PI;
+
+    return {
+      ...hole,
+      zMm: innerZMm,
+      outerZMm,
+      lockInnerOuterZ: nextLock,
+      chimneyMm,
+      drillAngleDeg,
+    };
+  }
+
   function updateHole(
     id: string,
     key: keyof Omit<ToneHole, "id">,
-    value: string | number
+    value: string | number | boolean
   ): void {
-    const normalizedValue = (() => {
-      if (key === "diameterMm" || key === "chimneyMm" || key === "zMm") {
-        const numeric = Number(value);
-        return Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
-      }
-
-      if (key === "drillAngleDeg") {
-        const numeric = Number(value);
-        return Math.min(75, Math.max(-75, Number.isFinite(numeric) ? numeric : 0));
-      }
-
-      if (key === "angleDeg") {
-        const numeric = Number(value);
-        return normalizeHoleAngleDeg(Number.isFinite(numeric) ? numeric : 0);
-      }
-
-      return value;
-    })();
-
     setHoles((prev) =>
-      prev.map((h) => (h.id === id ? { ...h, [key]: normalizedValue as never } : h))
+      prev.map((h) => {
+        if (h.id !== id) {
+          return h;
+        }
+
+        const currentOuter = h.outerZMm ?? h.zMm;
+        const currentLock = h.lockInnerOuterZ ?? true;
+
+        if (key === "zMm") {
+          const numeric = Number(value);
+          const innerZ = Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
+          const outerZ = currentLock ? innerZ : currentOuter;
+          return normalizeHoleInnerOuterGeometry(h, innerZ, outerZ, currentLock);
+        }
+
+        if (key === "outerZMm") {
+          const numeric = Number(value);
+          const outerZ = Number.isFinite(numeric) ? Math.max(numeric, 0) : h.zMm;
+          return normalizeHoleInnerOuterGeometry(h, h.zMm, outerZ, currentLock);
+        }
+
+        if (key === "lockInnerOuterZ") {
+          const nextLock = Boolean(value);
+          const outerZ = nextLock ? h.zMm : currentOuter;
+          return normalizeHoleInnerOuterGeometry(h, h.zMm, outerZ, nextLock);
+        }
+
+        if (key === "chimneyMm") {
+          const numeric = Number(value);
+          const nextChimney = Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
+          return normalizeHoleInnerOuterGeometry(
+            {
+              ...h,
+              chimneyMm: nextChimney,
+            },
+            h.zMm,
+            currentOuter,
+            currentLock
+          );
+        }
+
+        if (key === "diameterMm") {
+          const numeric = Number(value);
+          return { ...h, diameterMm: Number.isFinite(numeric) ? Math.max(numeric, 0) : 0 };
+        }
+
+        if (key === "drillAngleDeg") {
+          // Drill angle is derived from inner/outer z and chimney; keep direct edits disabled.
+          return h;
+        }
+
+        if (key === "angleDeg") {
+          const numeric = Number(value);
+          return {
+            ...h,
+            angleDeg: normalizeHoleAngleDeg(Number.isFinite(numeric) ? numeric : 0),
+          };
+        }
+
+        return { ...h, [key]: value as never };
+      })
     );
   }
 
@@ -1806,7 +1935,16 @@ export default function App() {
   }
 
   function applyEvenHoleSpacing(): void {
-    setHoles((prev) => evenlySpaceHoles(prev, segments));
+    setHoles((prev) =>
+      evenlySpaceHoles(prev, segments).map((hole) =>
+        normalizeHoleInnerOuterGeometry(
+          hole,
+          hole.zMm,
+          hole.lockInnerOuterZ ?? true ? hole.zMm : hole.outerZMm ?? hole.zMm,
+          hole.lockInnerOuterZ ?? true
+        )
+      )
+    );
   }
 
   function applySuggestedDeltaToHole(
@@ -1825,6 +1963,29 @@ export default function App() {
         if (hole.id !== row.soundingHoleId) {
           return hole;
         }
+
+        const currentOuter = hole.outerZMm ?? hole.zMm;
+        const currentLock = hole.lockInnerOuterZ ?? true;
+
+        if (key === "zMm") {
+          const nextInner = Math.max(hole.zMm + safeDelta, 0.01);
+          const nextOuter = currentLock ? nextInner : currentOuter;
+          return normalizeHoleInnerOuterGeometry(hole, nextInner, nextOuter, currentLock);
+        }
+
+        if (key === "chimneyMm") {
+          const nextChimney = Math.max(hole.chimneyMm + safeDelta, 0.01);
+          return normalizeHoleInnerOuterGeometry(
+            {
+              ...hole,
+              chimneyMm: nextChimney,
+            },
+            hole.zMm,
+            currentOuter,
+            currentLock
+          );
+        }
+
         return {
           ...hole,
           [key]: Math.max(hole[key] + safeDelta, 0.01),
@@ -2630,6 +2791,8 @@ export default function App() {
                       id: makeId("hole"),
                       label: `H${prev.length + 1}`,
                       zMm: Math.max(180, prev.length * 36 + 180),
+                      outerZMm: Math.max(180, prev.length * 36 + 180),
+                      lockInnerOuterZ: true,
                       angleDeg: 0,
                       drillAngleDeg: 0,
                       diameterMm: 7,
@@ -2649,23 +2812,26 @@ export default function App() {
             larger z values move upward toward the barrel and mouthpiece.
           </p>
           <p className="math">
-            Circumferential location uses degrees from the front centerline: front = 0, back =
-            -180, side keys = +/-90.
+            Inner z is where the hole intersects the bore. Outer z is where the opening lands on
+            the outside surface. Lock keeps inner and outer z identical. Drill angle is derived
+            automatically from inner/outer z and chimney length. Chimney is constrained to the
+            physically available wall traversal from the local outer diameter so holes always pass
+            fully through the wall without exceeding it.
           </p>
           <p className="math">
-            Drill angle (axial tilt): 0° = perpendicular to the bore. Positive = tilted toward
-            the mouthpiece, which shifts the outer opening toward the bell so fingers can reach
-            more easily. The model corrects for the longer through-wall path, the elliptical
-            bore aperture, and the shifted acoustic center. Clamped to ±75°.
+            Circumferential location uses degrees from the front centerline: front = 0, back =
+            -180, side keys = +/-90.
           </p>
 
           <table>
             <thead>
               <tr>
                 <th>Label</th>
-                <th>z from bell (mm)</th>
+                <th>Inner z (mm)</th>
+                <th>Outer z (mm)</th>
+                <th>Lock z</th>
                 <th>Angle (deg)</th>
-                <th>Drill (deg)</th>
+                <th>Drill (deg, derived)</th>
                 <th>Dia (mm)</th>
                 <th>Chimney (mm)</th>
                 <th>Wall (mm)</th>
@@ -2692,6 +2858,22 @@ export default function App() {
                   <td>
                     <input
                       type="number"
+                      value={hole.outerZMm ?? hole.zMm}
+                      disabled={hole.lockInnerOuterZ ?? true}
+                      onChange={(e) => updateHole(hole.id, "outerZMm", Number(e.target.value))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={hole.lockInnerOuterZ ?? true}
+                      onChange={(e) => updateHole(hole.id, "lockInnerOuterZ", e.target.checked)}
+                      title="Lock inner and outer z together"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
                       step="1"
                       min={-180}
                       max={180}
@@ -2712,8 +2894,9 @@ export default function App() {
                       min={-75}
                       max={75}
                       value={hole.drillAngleDeg ?? 0}
-                      title="Axial drill angle: 0 = perpendicular, positive = tilted toward mouthpiece"
-                      onChange={(e) => updateHole(hole.id, "drillAngleDeg", Number(e.target.value))}
+                      title="Derived from inner z, outer z, and chimney"
+                      readOnly
+                      disabled
                     />
                   </td>
                   <td>

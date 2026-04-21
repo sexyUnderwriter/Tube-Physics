@@ -9,7 +9,12 @@ export type BoreSegment = {
 export type ToneHole = {
   id: string;
   label: string;
+  /** Inner bore intersection z (mm from bell). */
   zMm: number;
+  /** Outer opening z (mm from bell). Defaults to inner z when omitted. */
+  outerZMm?: number;
+  /** If true, outer z is constrained to match inner z. */
+  lockInnerOuterZ?: boolean;
   angleDeg: number;
   /** Axial drill angle in degrees. 0 = perpendicular to bore axis.
    *  Positive = tilted toward mouthpiece (outer opening shifts toward bell,
