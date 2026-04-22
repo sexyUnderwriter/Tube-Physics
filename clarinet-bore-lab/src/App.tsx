@@ -1119,6 +1119,7 @@ export default function App() {
         note: "Add a tone hole to test manual fingering.",
         terminationLabel: "N/A",
         registerLabel: "N/A",
+        usesBellTermination: false,
       };
     }
 
@@ -1156,7 +1157,7 @@ export default function App() {
 
     const terminationLabel =
       termination === "bell"
-        ? "Bell termination (all closed)"
+        ? "Bell termination (no open non-register holes)"
         : `${soundingHole.label} (first open from mouthpiece)`;
     const registerLabel = registerHole
       ? `${registerHole.label}: ${registerOpen ? "Open (clarion)" : "Closed (chalumeau)"}`
@@ -1168,6 +1169,7 @@ export default function App() {
       note: preview?.note ?? "N/A",
       terminationLabel,
       registerLabel,
+      usesBellTermination: termination === "bell",
     };
   }, [
     acousticSegments,
@@ -3415,6 +3417,12 @@ export default function App() {
                 </>
               )}
             </div>
+            {manualFingeringPreview.usesBellTermination && (
+              <p className="math">
+                No non-register hole is open, so the preview is using bell termination. Open-hole
+                selection controls are inactive until you open a non-register hole.
+              </p>
+            )}
             <div className="hole-solver-card">
               <h4>Open-Hole Target Solver</h4>
               <p className="math">
@@ -3422,24 +3430,26 @@ export default function App() {
                 target frequency.
               </p>
               <div className="settings-row">
-                <label>
-                  Selected open hole
-                  <select
-                    value={solverOpenHoleId}
-                    onChange={(e) => setSolverOpenHoleId(e.target.value)}
-                    disabled={manualOpenHoleCandidates.length === 0}
-                  >
-                    {manualOpenHoleCandidates.length === 0 ? (
-                      <option value="">No open non-register holes</option>
-                    ) : (
-                      manualOpenHoleCandidates.map((hole) => (
+                {manualOpenHoleCandidates.length === 0 ? (
+                  <label>
+                    Selected open hole
+                    <input type="text" value="Unavailable during bell termination" disabled />
+                  </label>
+                ) : (
+                  <label>
+                    Selected open hole
+                    <select
+                      value={solverOpenHoleId}
+                      onChange={(e) => setSolverOpenHoleId(e.target.value)}
+                    >
+                      {manualOpenHoleCandidates.map((hole) => (
                         <option key={hole.id} value={hole.id}>
                           {hole.label} @ z {hole.zMm.toFixed(1)} mm
                         </option>
-                      ))
-                    )}
-                  </select>
-                </label>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label>
                   Target Hz
                   <input

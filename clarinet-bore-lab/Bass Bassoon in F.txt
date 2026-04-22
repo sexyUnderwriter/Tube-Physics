@@ -46,7 +46,7 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "seg-wur3mke",
       "label": "Barrell",
-      "zMm": 850,
+      "zMm": 791.4,
       "diameterMm": 15.87,
       "outerDiameterMm": 24
     }
@@ -151,11 +151,11 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-uz8da2p",
-      "label": "Chalumeau G2 (Left Thumb Top Key and below open)",
+      "label": "Chalumeau G2 (Left Thumb Top Key open)",
       "targetNote": "G2",
       "ventHoleId": "hole-ol4e7ux",
       "register": "fundamental",
-      "termination": "below-open-vent-closed"
+      "termination": "vent-hole"
     },
     {
       "id": "fing-9g3uxy3",
@@ -167,11 +167,11 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-z0dgm6b",
-      "label": "Chalumeau A2 (Left Thumb Hole and below open)",
+      "label": "Chalumeau A2 (Left Thumb Hole open)",
       "targetNote": "A2",
       "ventHoleId": "hole-gb37fk5",
       "register": "fundamental",
-      "termination": "below-open-vent-closed"
+      "termination": "vent-hole"
     },
     {
       "id": "fing-bdlgft3",
@@ -183,11 +183,11 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-6o88b06",
-      "label": "Chalumeau A#2 (Left Thumb Hole (small) and below open)",
+      "label": "Chalumeau A#2 (Left Thumb Hole small open)",
       "targetNote": "A#2",
       "ventHoleId": "hole-yhh0wl4",
       "register": "fundamental",
-      "termination": "below-open-vent-closed"
+      "termination": "vent-hole"
     },
     {
       "id": "fing-0zqhyeg",
@@ -199,11 +199,11 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-cz1g5y2",
-      "label": "Chalumeau C3 (Right Thumb Top Key and below open)",
+      "label": "Chalumeau C3 (Right Thumb Top Key open)",
       "targetNote": "C3",
       "ventHoleId": "hole-lpvqnz4",
       "register": "fundamental",
-      "termination": "below-open-vent-closed"
+      "termination": "vent-hole"
     },
     {
       "id": "fing-np1mncr",
@@ -215,11 +215,11 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "fing-1hvyimi",
-      "label": "Chalumeau D3 (Right Thumb Hole and below open)",
+      "label": "Chalumeau D3 (Right Thumb Hole open)",
       "targetNote": "D3",
       "ventHoleId": "hole-oko52v2",
       "register": "fundamental",
-      "termination": "below-open-vent-closed"
+      "termination": "vent-hole"
     },
     {
       "id": "fing-nl1gfpc",
