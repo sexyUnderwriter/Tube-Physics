@@ -315,17 +315,23 @@ function effectiveLengthForHole(
   return holeShuntTermMm + downstreamLoadTermMm;
 }
 
-function correctionAdvice(centsToTarget: number | null): string {
-  if (centsToTarget === null) {
+function correctionAdvice(targetNote: string, centsToTarget: number | null): string {
+  const trimmedTarget = targetNote.trim();
+
+  if (trimmedTarget.length === 0) {
     return "Add a target note for direct tuning guidance.";
   }
+
+  if (centsToTarget === null) {
+    return `Target note \"${trimmedTarget}\" is invalid. Use scientific pitch like E4, F#4, or Bb3.`;
+  }
   if (Math.abs(centsToTarget) <= 5) {
-    return "Near target. Keep geometry, then verify with impedance or prototype tests.";
+    return `Near target (${trimmedTarget}). Keep geometry, then verify with impedance or prototype tests.`;
   }
   if (centsToTarget > 0) {
-    return "Sharp: increase effective length (move hole toward bell / lower z, reduce hole diameter, or increase chimney).";
+    return `Sharp vs target ${trimmedTarget}: increase effective length (move hole toward bell / lower z, reduce hole diameter, or increase chimney).`;
   }
-  return "Flat: decrease effective length (move hole toward mouthpiece / higher z, enlarge hole diameter, or reduce chimney).";
+  return `Flat vs target ${trimmedTarget}: decrease effective length (move hole toward mouthpiece / higher z, enlarge hole diameter, or reduce chimney).`;
 }
 
 function distanceFromMouthpieceMm(segments: BoreSegment[], holeZMm: number): number {
@@ -691,7 +697,7 @@ export function evaluateToneHoles(
         nearestNote: midiToName(nearestMidi),
         centsErrorToNearest: centsToNearest,
         centsErrorToTarget: centsToTarget,
-        recommendation: correctionAdvice(centsToTarget),
+        recommendation: correctionAdvice(hole.targetNote, centsToTarget),
       };
     });
 }

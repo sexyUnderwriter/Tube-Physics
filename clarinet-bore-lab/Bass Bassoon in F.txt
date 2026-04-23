@@ -134,6 +134,18 @@ CLARINET_BORE_LAB_MODEL_V1
       "diameterMm": 4,
       "chimneyMm": 4.065,
       "targetNote": "A#2"
+    },
+    {
+      "id": "hole-jyjaqds",
+      "label": "Right Front Key",
+      "zMm": 640.1678769467127,
+      "outerZMm": 640.1678769467127,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 4.065,
+      "targetNote": "F3"
     }
   ],
   "fingerings": [
@@ -247,6 +259,14 @@ CLARINET_BORE_LAB_MODEL_V1
       "targetNote": "B4",
       "ventHoleId": "hole-oal84e3",
       "register": "third",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-o3jfeto",
+      "label": "Fingering 15",
+      "targetNote": "F3",
+      "ventHoleId": "hole-jyjaqds",
+      "register": "fundamental",
       "termination": "vent-hole"
     }
   ]
