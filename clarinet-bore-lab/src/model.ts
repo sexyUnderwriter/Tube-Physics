@@ -297,11 +297,11 @@ function effectiveLengthForHole(
   const chimney = Math.max(hole.chimneyMm, 0.1);
 
   // Oblique drilling corrections:
-  // - Drill path through the wall is longer by 1/cos(φ)
+  // - chimneyMm is already stored as drill-path length (inner-to-outer opening)
   // - Bore-side aperture is an ellipse with area π·rh²/cos(φ)
   const phi = (drillAngleDeg * Math.PI) / 180;
   const cosφ = Math.max(Math.cos(phi), 0.1); // guard against ≥90°
-  const obliqueChimney = chimney / cosφ;
+  const obliqueChimney = chimney;
   const obliqueHoleArea = Math.PI * rh * rh / cosφ;
 
   const boreArea = Math.PI * rb * rb;

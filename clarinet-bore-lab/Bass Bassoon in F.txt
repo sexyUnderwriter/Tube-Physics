@@ -137,15 +137,39 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "hole-jyjaqds",
-      "label": "Right Front Key",
-      "zMm": 640.1678769467127,
-      "outerZMm": 640.1678769467127,
+      "label": "Hole 6 (Right Front)",
+      "zMm": 620,
+      "outerZMm": 620,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
       "diameterMm": 7,
       "chimneyMm": 4.065,
       "targetNote": "F3"
+    },
+    {
+      "id": "hole-cb215bb",
+      "label": "Hole 4 (Right Front)",
+      "zMm": 660,
+      "outerZMm": 660,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 4.065,
+      "targetNote": "A3"
+    },
+    {
+      "id": "hole-x7es19a",
+      "label": "Hole 5 (Right Front)",
+      "zMm": 640,
+      "outerZMm": 640,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 4.065,
+      "targetNote": "G3"
     }
   ],
   "fingerings": [
@@ -266,6 +290,14 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Fingering 15",
       "targetNote": "F3",
       "ventHoleId": "hole-jyjaqds",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-tgwli0a",
+      "label": "Fingering 16",
+      "targetNote": "G3",
+      "ventHoleId": "hole-x7es19a",
       "register": "fundamental",
       "termination": "vent-hole"
     }
