@@ -6,6 +6,10 @@ CLARINET_BORE_LAB_MODEL_V1
   "pitchStandardHz": 440,
   "toleranceCents": 10,
   "firstChalumeauNote": "F2",
+  "cockpitShowChalumeau": true,
+  "cockpitShowClarion": false,
+  "intonationShowChalumeau": true,
+  "intonationShowClarion": false,
   "selectedMouthpieceId": "meyer-tenor-6m-bb",
   "segments": [
     {
@@ -62,8 +66,8 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-ol4e7ux",
       "label": "Left Thumb Top Key",
-      "zMm": 183.88005387184853,
-      "outerZMm": 183.88005387184853,
+      "zMm": 235.30657896935978,
+      "outerZMm": 235.30657896935978,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
@@ -74,8 +78,8 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-gb37fk5",
       "label": "Left Thumb Hole",
-      "zMm": 253.41755335638325,
-      "outerZMm": 253.41755335638325,
+      "zMm": 299.6867828374989,
+      "outerZMm": 299.6867828374989,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
@@ -86,8 +90,8 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-lpvqnz4",
       "label": "Right Thumb Top Key",
-      "zMm": 365.08090524093114,
-      "outerZMm": 365.08090524093114,
+      "zMm": 443.4267601570817,
+      "outerZMm": 443.4267601570817,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
@@ -98,8 +102,8 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-oko52v2",
       "label": "Right Thumb Hole",
-      "zMm": 417.40794558848694,
-      "outerZMm": 417.40794558848694,
+      "zMm": 529.0056028060687,
+      "outerZMm": 529.0056028060687,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
@@ -110,8 +114,8 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-oal84e3",
       "label": "Right Thumb Bottom Key",
-      "zMm": 430,
-      "outerZMm": 430,
+      "zMm": 604.8637117342828,
+      "outerZMm": 604.8637117342828,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
@@ -122,12 +126,12 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-yhh0wl4",
       "label": "Left Thumb Hole (small)",
-      "zMm": 255,
-      "outerZMm": 255,
+      "zMm": 373.7036443167416,
+      "outerZMm": 373.7036443167416,
       "lockInnerOuterZ": true,
       "angleDeg": -170,
       "drillAngleDeg": 0,
-      "diameterMm": 2,
+      "diameterMm": 4,
       "chimneyMm": 4.065,
       "targetNote": "A#2"
     }

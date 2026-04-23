@@ -539,6 +539,10 @@ type DesignSnapshot = {
   pitchStandardHz: number;
   toleranceCents: number;
   firstChalumeauNote: string;
+  cockpitShowChalumeau: boolean;
+  cockpitShowClarion: boolean;
+  intonationShowChalumeau: boolean;
+  intonationShowClarion: boolean;
   selectedMouthpieceId: string;
   segments: BoreSegment[];
   mouthpiece: MouthpieceGeometry;
@@ -553,7 +557,20 @@ type LegacyToneHole = Omit<ToneHole, "zMm" | "angleDeg"> & {
 type LegacyFingering = Omit<Fingering, "termination"> & {
   termination?: "vent-hole" | "below-open-vent-closed" | "bell";
 };
-type SnapshotV1 = Omit<DesignSnapshot, "holes" | "mouthpiece" | "fingerings"> & {
+type SnapshotV1 = Omit<
+  DesignSnapshot,
+  | "holes"
+  | "mouthpiece"
+  | "fingerings"
+  | "cockpitShowChalumeau"
+  | "cockpitShowClarion"
+  | "intonationShowChalumeau"
+  | "intonationShowClarion"
+> & {
+  cockpitShowChalumeau?: boolean;
+  cockpitShowClarion?: boolean;
+  intonationShowChalumeau?: boolean;
+  intonationShowClarion?: boolean;
   holes: Array<ToneHole | LegacyToneHole>;
   fingerings: Array<Fingering | LegacyFingering>;
   mouthpiece?: Partial<MouthpieceGeometry>;
@@ -694,6 +711,22 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
 
     return {
       ...parsed,
+      cockpitShowChalumeau:
+        typeof parsed.cockpitShowChalumeau === "boolean"
+          ? parsed.cockpitShowChalumeau
+          : true,
+      cockpitShowClarion:
+        typeof parsed.cockpitShowClarion === "boolean"
+          ? parsed.cockpitShowClarion
+          : true,
+      intonationShowChalumeau:
+        typeof parsed.intonationShowChalumeau === "boolean"
+          ? parsed.intonationShowChalumeau
+          : true,
+      intonationShowClarion:
+        typeof parsed.intonationShowClarion === "boolean"
+          ? parsed.intonationShowClarion
+          : true,
       selectedMouthpieceId: preset.id,
       mouthpiece,
       holes: normalizedHoles,
@@ -1535,6 +1568,10 @@ export default function App() {
     setPitchStandardHz(saved.pitchStandardHz);
     setToleranceCents(saved.toleranceCents);
     setFirstChalumeauNote(saved.firstChalumeauNote);
+    setCockpitShowChalumeau(saved.cockpitShowChalumeau);
+    setCockpitShowClarion(saved.cockpitShowClarion);
+    setIntonationShowChalumeau(saved.intonationShowChalumeau);
+    setIntonationShowClarion(saved.intonationShowClarion);
     setSegments(saved.segments);
     setMouthpiece(saved.mouthpiece);
     setHoles(saved.holes);
@@ -1553,6 +1590,10 @@ export default function App() {
       pitchStandardHz,
       toleranceCents,
       firstChalumeauNote,
+      cockpitShowChalumeau,
+      cockpitShowClarion,
+      intonationShowChalumeau,
+      intonationShowClarion,
       selectedMouthpieceId,
       segments,
       mouthpiece,
