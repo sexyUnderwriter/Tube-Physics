@@ -150,13 +150,13 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-cb215bb",
       "label": "Hole 4 (Right Front)",
-      "zMm": 660,
-      "outerZMm": 660,
-      "lockInnerOuterZ": true,
+      "zMm": 696,
+      "outerZMm": 733,
+      "lockInnerOuterZ": false,
       "angleDeg": 0,
-      "drillAngleDeg": 0,
+      "drillAngleDeg": -75.00000000000001,
       "diameterMm": 7,
-      "chimneyMm": 4.065,
+      "chimneyMm": 37.22263054916995,
       "targetNote": "A3"
     },
     {

@@ -1880,16 +1880,31 @@ export default function App() {
     const outerZMm = nextLock ? innerZMm : unlockedOuterZMm;
 
     const wallMm = estimateWallThicknessAtZMm(innerZMm);
-    const dzMm = innerZMm - outerZMm;
-    const maxAvailableChimneyMm = wallMm !== null ? Math.hypot(wallMm, dzMm) : Number.POSITIVE_INFINITY;
-    const minRequiredChimneyMm = wallMm !== null ? maxAvailableChimneyMm : 0.1;
-    const chimneyMm = Math.min(
-      Math.max(hole.chimneyMm, minRequiredChimneyMm, 0.1),
-      maxAvailableChimneyMm
-    );
-
-    const ratio = chimneyMm > 0 ? dzMm / chimneyMm : 0;
     const maxSin = Math.sin((75 * Math.PI) / 180);
+
+    if (wallMm !== null) {
+      const rawDzMm = innerZMm - outerZMm;
+      const maxDzMm = wallMm * Math.tan((75 * Math.PI) / 180);
+      const dzMm = Math.max(-maxDzMm, Math.min(maxDzMm, rawDzMm));
+      const resolvedOuterZMm = Math.min(Math.max(innerZMm - dzMm, 0), zMax);
+      const chimneyMm = Math.max(Math.hypot(wallMm, dzMm), 0.1);
+      const ratio = chimneyMm > 0 ? dzMm / chimneyMm : 0;
+      const clampedRatio = Math.max(-maxSin, Math.min(maxSin, ratio));
+      const drillAngleDeg = (Math.asin(clampedRatio) * 180) / Math.PI;
+
+      return {
+        ...hole,
+        zMm: innerZMm,
+        outerZMm: resolvedOuterZMm,
+        lockInnerOuterZ: nextLock,
+        chimneyMm,
+        drillAngleDeg,
+      };
+    }
+
+    const chimneyMm = Math.max(hole.chimneyMm, 0.1);
+    const dzMm = innerZMm - outerZMm;
+    const ratio = chimneyMm > 0 ? dzMm / chimneyMm : 0;
     const clampedRatio = Math.max(-maxSin, Math.min(maxSin, ratio));
     const drillAngleDeg = (Math.asin(clampedRatio) * 180) / Math.PI;
 
