@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BoreSegment,
+  BoreBend,
   Fingering,
   FingeringTuningSensitivity,
   HoleEvaluation,
@@ -24,6 +25,7 @@ import {
   totalBoreLengthMm,
   triangulateHoleForTargetHz,
 } from "./model";
+import { Bore3DViewer } from "./Bore3DViewer";
 
 type MouthpiecePreset = {
   id: string;
@@ -750,6 +752,7 @@ export default function App() {
   const [buildTargetFundamentalHzInput, setBuildTargetFundamentalHzInput] =
     useState("130.81");
   const [segments, setSegments] = useState<BoreSegment[]>(initialSegments);
+  const [bends, setBends] = useState<BoreBend[]>([]);
   const [holes, setHoles] = useState<ToneHole[]>(initialHoles);
   const [toleranceCents, setToleranceCents] = useState(10);
   const [fingerings, setFingerings] = useState<Fingering[]>(initialFingerings);
@@ -2813,6 +2816,131 @@ export default function App() {
                       disabled={source === "mouthpiece" || segments.length <= 1}
                     >
                       {source === "mouthpiece" ? "Preset" : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h2>3D Tube Geometry</h2>
+            <div className="badge-row">
+              <button
+                type="button"
+                onClick={() =>
+                  setBends((prev) => [
+                    ...prev,
+                    {
+                      id: makeId("bend"),
+                      label: `Bend ${prev.length + 1}`,
+                      pathDistanceMm: totalBoreLengthMm(segments) * 0.5,
+                      bendAngleDeg: 90,
+                      bendAxisPlane: "xz",
+                    },
+                  ])
+                }
+              >
+                Add bend
+              </button>
+            </div>
+          </div>
+
+          <Bore3DViewer segments={segments} bends={bends} />
+
+          <p className="math">
+            Add bends to fold the tube like a bassoon. The acoustic calculations remain based on
+            path length, so tuning is unaffected by the 3D geometry.
+          </p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Path distance (mm)</th>
+                <th>Bend angle (deg)</th>
+                <th>Bend plane</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {bends.map((bend) => (
+                <tr key={bend.id}>
+                  <td>
+                    <input
+                      value={bend.label}
+                      onChange={(e) =>
+                        setBends((prev) =>
+                          prev.map((b) =>
+                            b.id === bend.id ? { ...b, label: e.target.value } : b
+                          )
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      value={bend.pathDistanceMm}
+                      onChange={(e) =>
+                        setBends((prev) =>
+                          prev.map((b) =>
+                            b.id === bend.id
+                              ? { ...b, pathDistanceMm: Number(e.target.value) }
+                              : b
+                          )
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      max="180"
+                      value={bend.bendAngleDeg}
+                      onChange={(e) =>
+                        setBends((prev) =>
+                          prev.map((b) =>
+                            b.id === bend.id
+                              ? { ...b, bendAngleDeg: Number(e.target.value) }
+                              : b
+                          )
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <select
+                      value={bend.bendAxisPlane}
+                      onChange={(e) =>
+                        setBends((prev) =>
+                          prev.map((b) =>
+                            b.id === bend.id
+                              ? {
+                                  ...b,
+                                  bendAxisPlane: e.target.value as "xz" | "yz",
+                                }
+                              : b
+                          )
+                        )
+                      }
+                    >
+                      <option value="xz">XZ plane (side-to-side)</option>
+                      <option value="yz">YZ plane (front-to-back)</option>
+                    </select>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() =>
+                        setBends((prev) => prev.filter((b) => b.id !== bend.id))
+                      }
+                    >
+                      Remove
                     </button>
                   </td>
                 </tr>

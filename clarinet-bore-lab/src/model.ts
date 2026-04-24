@@ -4,6 +4,20 @@ export type BoreSegment = {
   zMm: number;
   diameterMm: number;
   outerDiameterMm?: number;
+  /** 3D position along the bore. If omitted, assumes straight line along z-axis. */
+  x?: number;
+  y?: number;
+};
+
+export type BoreBend = {
+  id: string;
+  label: string;
+  /** Position along acoustic path from mouthpiece (mm) */
+  pathDistanceMm: number;
+  /** Bend angle in degrees (0 = straight, 90 = right angle fold). */
+  bendAngleDeg: number;
+  /** Bend axis: "xz" (bend in xz plane), "yz" (bend in yz plane). */
+  bendAxisPlane: "xz" | "yz";
 };
 
 export type ToneHole = {
@@ -142,6 +156,116 @@ function minimalAngleDeltaDeg(aDeg: number, bDeg: number): number {
   const b = normalizeHoleAngleDeg(bDeg);
   const raw = Math.abs(a - b);
   return Math.min(raw, 360 - raw);
+}
+
+/** 3D point */
+export type Vec3 = { x: number; y: number; z: number };
+
+/** Calculate 3D bore path from segments and bends. */
+export function calculateBorePathPoints(
+  segments: BoreSegment[],
+  bends: BoreBend[]
+): Vec3[] {
+  if (segments.length === 0) {
+    return [];
+  }
+
+  const sortedSegments = [...segments].sort((a, b) => a.zMm - b.zMm);
+  const totalLength = totalBoreLengthMm(sortedSegments);
+  const sortedBends = [...bends].sort((a, b) => a.pathDistanceMm - b.pathDistanceMm);
+
+  const points: Vec3[] = [];
+  let currentPos: Vec3 = { x: 0, y: 0, z: 0 };
+  let currentDirection: Vec3 = { x: 0, y: 0, z: 1 }; // initial direction toward mouthpiece
+
+  // Add bell (z=0)
+  const segmentPoints = sortedSegments.map((s) => ({
+    ...s,
+    x: s.x ?? 0,
+    y: s.y ?? 0,
+  }));
+
+  // Build path segment by segment
+  for (let i = 0; i < segmentPoints.length; i += 1) {
+    const segment = segmentPoints[i];
+    const distFromBell = segment.zMm;
+    const distFromMouthpiece = totalLength - distFromBell;
+
+    // Check if there's a bend at this location
+    const bendAtThis = sortedBends.find(
+      (b) => Math.abs(b.pathDistanceMm - distFromMouthpiece) < 0.1
+    );
+
+    if (bendAtThis) {
+      // Apply bend rotation
+      const phi = (bendAtThis.bendAngleDeg * Math.PI) / 180;
+      if (bendAtThis.bendAxisPlane === "xz") {
+        const cos = Math.cos(phi);
+        const sin = Math.sin(phi);
+        const newZ = currentDirection.z * cos - currentDirection.x * sin;
+        const newX = currentDirection.x * cos + currentDirection.z * sin;
+        currentDirection = { x: newX, y: currentDirection.y, z: newZ };
+      } else {
+        const cos = Math.cos(phi);
+        const sin = Math.sin(phi);
+        const newZ = currentDirection.z * cos - currentDirection.y * sin;
+        const newY = currentDirection.y * cos + currentDirection.z * sin;
+        currentDirection = { x: currentDirection.x, y: newY, z: newZ };
+      }
+    }
+
+    // Segment length (use Z spacing as default)
+    const nextZ = i < segmentPoints.length - 1 ? segmentPoints[i + 1].zMm : segment.zMm;
+    const segmentLength = i === segmentPoints.length - 1 ? 0 : Math.abs(nextZ - segment.zMm);
+
+    // Add point and move along direction
+    points.push({ ...currentPos });
+    currentPos = {
+      x: currentPos.x + currentDirection.x * segmentLength,
+      y: currentPos.y + currentDirection.y * segmentLength,
+      z: currentPos.z + currentDirection.z * segmentLength,
+    };
+  }
+
+  points.push(currentPos); // Add final mouthpiece point
+  return points;
+}
+
+/** Calculate 3D position at a given path distance from mouthpiece. */
+export function position3DAlongPath(
+  segments: BoreSegment[],
+  bends: BoreBend[],
+  pathDistanceMm: number
+): Vec3 {
+  const points = calculateBorePathPoints(segments, bends);
+  if (points.length < 2) {
+    return { x: 0, y: 0, z: 0 };
+  }
+
+  const totalLength = totalBoreLengthMm(segments);
+  const clampedDist = clamp(pathDistanceMm, 0, totalLength);
+
+  // Find segment containing this distance
+  let cumulativeLength = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const segLength = Math.sqrt(
+      (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2 + (p2.z - p1.z) ** 2
+    );
+
+    if (cumulativeLength + segLength >= clampedDist) {
+      const t = (clampedDist - cumulativeLength) / Math.max(segLength, 0.001);
+      return {
+        x: p1.x + t * (p2.x - p1.x),
+        y: p1.y + t * (p2.y - p1.y),
+        z: p1.z + t * (p2.z - p1.z),
+      };
+    }
+    cumulativeLength += segLength;
+  }
+
+  return points[points.length - 1];
 }
 
 export function speedOfSoundMs(tempC: number): number {
