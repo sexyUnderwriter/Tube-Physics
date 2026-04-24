@@ -1,0 +1,393 @@
+CLARINET_BORE_LAB_MODEL_V1
+{
+  "version": 1,
+  "name": "Prototype Bassoon in F (all keys)",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "F2",
+  "cockpitShowChalumeau": true,
+  "cockpitShowClarion": false,
+  "intonationShowChalumeau": true,
+  "intonationShowClarion": false,
+  "selectedMouthpieceId": "meyer-tenor-6m-bb",
+  "segments": [
+    {
+      "id": "seg-bell-opening",
+      "label": "Bell opening",
+      "zMm": 0,
+      "diameterMm": 60,
+      "outerDiameterMm": 66
+    },
+    {
+      "id": "seg-bell-mid-low",
+      "label": "Bell mid (lower)",
+      "zMm": 40,
+      "diameterMm": 40,
+      "outerDiameterMm": 46
+    },
+    {
+      "id": "seg-bell-mid",
+      "label": "Bell mid",
+      "zMm": 80,
+      "diameterMm": 25,
+      "outerDiameterMm": 31
+    },
+    {
+      "id": "seg-bell-throat",
+      "label": "Bell throat",
+      "zMm": 115,
+      "diameterMm": 20,
+      "outerDiameterMm": 27
+    },
+    {
+      "id": "seg-bell-join",
+      "label": "Bell join (bore transition)",
+      "zMm": 150,
+      "diameterMm": 19.05,
+      "outerDiameterMm": 24
+    },
+    {
+      "id": "seg-wur3mke",
+      "label": "Barrell",
+      "zMm": 891.3999999999999,
+      "diameterMm": 15.87,
+      "outerDiameterMm": 24
+    }
+  ],
+  "mouthpiece": {
+    "label": "Mouthpiece",
+    "insertMm": 92,
+    "boreMm": 16.8,
+    "overallLengthMm": 104,
+    "presetApplied": false
+  },
+  "holes": [
+    {
+      "id": "hole-ol4e7ux",
+      "label": "Left Thumb Top Key",
+      "zMm": 218.7739814657148,
+      "outerZMm": 218.7739814657148,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 4.372483997308913,
+      "chimneyMm": 2.6224920832620526,
+      "targetNote": "G2"
+    },
+    {
+      "id": "hole-gb37fk5",
+      "label": "Left Thumb Hole",
+      "zMm": 291.22943431753964,
+      "outerZMm": 291.22943431753964,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.953564718796633,
+      "chimneyMm": 2.7778794180805075,
+      "targetNote": "A2"
+    },
+    {
+      "id": "hole-lpvqnz4",
+      "label": "Right Thumb Top Key",
+      "zMm": 434.62372307877047,
+      "outerZMm": 434.62372307877047,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.0009613021625965,
+      "chimneyMm": 3.085401564196445,
+      "targetNote": "C3"
+    },
+    {
+      "id": "hole-oko52v2",
+      "label": "Right Thumb Hole",
+      "zMm": 529.0056028060687,
+      "outerZMm": 529.0056028060687,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.452962294028188,
+      "chimneyMm": 4.065,
+      "targetNote": "D3"
+    },
+    {
+      "id": "hole-oal84e3",
+      "label": "Right Thumb Bottom Key",
+      "zMm": 604.8637117342828,
+      "outerZMm": 604.8637117342828,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.380680390000007,
+      "chimneyMm": 4.065,
+      "targetNote": "E3"
+    },
+    {
+      "id": "hole-yhh0wl4",
+      "label": "Left Thumb Hole (small)",
+      "zMm": 340.69563165142347,
+      "outerZMm": 340.69563165142347,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 7,
+      "chimneyMm": 2.8839641952060475,
+      "targetNote": "A#2"
+    },
+    {
+      "id": "hole-jyjaqds",
+      "label": "Hole 6 (Right Front)",
+      "zMm": 618.7397786985532,
+      "outerZMm": 618.7397786985532,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 5,
+      "chimneyMm": 3.4802552577970047,
+      "targetNote": "F3"
+    },
+    {
+      "id": "hole-cb215bb",
+      "label": "Hole 4 (Right Front)",
+      "zMm": 761.2549080773338,
+      "outerZMm": 761.2549080773338,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.204357526846548,
+      "chimneyMm": 4.065,
+      "targetNote": "A3"
+    },
+    {
+      "id": "hole-x7es19a",
+      "label": "Hole 5 (Right Front)",
+      "zMm": 677.6834398527999,
+      "outerZMm": 677.6834398527999,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 5,
+      "chimneyMm": 3.6066653215078937,
+      "targetNote": "G3"
+    },
+    {
+      "id": "hole-uq90rrd",
+      "label": "Hole 3 (Left Front)",
+      "zMm": 787.7570300414625,
+      "outerZMm": 787.7570300414625,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.178398182242776,
+      "chimneyMm": 4.065,
+      "targetNote": "Bb3"
+    },
+    {
+      "id": "hole-2qn3mxm",
+      "label": "Hole 2 (Left Front)",
+      "zMm": 832.7207596086182,
+      "outerZMm": 832.7207596086182,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.017602763173196,
+      "chimneyMm": 3.9649262853228784,
+      "targetNote": "C4"
+    },
+    {
+      "id": "hole-wdf37gx",
+      "label": "Hole 1 (Left Front)",
+      "zMm": 880.2067063297727,
+      "outerZMm": 880.2067063297727,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.085662236496745,
+      "chimneyMm": 4.065,
+      "targetNote": "D4"
+    },
+    {
+      "id": "hole-tl93rdd",
+      "label": "Left Front Key",
+      "zMm": 890,
+      "outerZMm": 890,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6.014776567350602,
+      "chimneyMm": 4.061997572160777,
+      "targetNote": "E4"
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-e7jrra0",
+      "label": "All covered F2",
+      "targetNote": "F2",
+      "ventHoleId": "hole-ol4e7ux",
+      "register": "fundamental",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-p0begoy",
+      "label": "Clarion C4 (all covered base)",
+      "targetNote": "C4",
+      "ventHoleId": "hole-ol4e7ux",
+      "register": "third",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-uz8da2p",
+      "label": "Chalumeau G2 (Left Thumb Top Key open)",
+      "targetNote": "G2",
+      "ventHoleId": "hole-ol4e7ux",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-9g3uxy3",
+      "label": "Clarion D4 (Left Thumb Top Key first open)",
+      "targetNote": "D4",
+      "ventHoleId": "hole-gb37fk5",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-z0dgm6b",
+      "label": "Chalumeau A2 (Left Thumb Hole open)",
+      "targetNote": "A2",
+      "ventHoleId": "hole-gb37fk5",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-bdlgft3",
+      "label": "Clarion E4 (Left Thumb Hole first open)",
+      "targetNote": "E4",
+      "ventHoleId": "hole-yhh0wl4",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-6o88b06",
+      "label": "Chalumeau A#2 (Left Thumb Hole small open)",
+      "targetNote": "A#2",
+      "ventHoleId": "hole-yhh0wl4",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-0zqhyeg",
+      "label": "Clarion F4 (Left Thumb Hole (small) first open)",
+      "targetNote": "F4",
+      "ventHoleId": "hole-lpvqnz4",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-cz1g5y2",
+      "label": "Chalumeau C3 (Right Thumb Top Key open)",
+      "targetNote": "C3",
+      "ventHoleId": "hole-lpvqnz4",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-np1mncr",
+      "label": "Clarion G4 (Right Thumb Top Key first open)",
+      "targetNote": "G4",
+      "ventHoleId": "hole-oko52v2",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-1hvyimi",
+      "label": "Chalumeau D3 (Right Thumb Hole open)",
+      "targetNote": "D3",
+      "ventHoleId": "hole-oko52v2",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-nl1gfpc",
+      "label": "Clarion A4 (Right Thumb Hole first open)",
+      "targetNote": "A4",
+      "ventHoleId": "hole-oal84e3",
+      "register": "third",
+      "termination": "below-open-vent-closed"
+    },
+    {
+      "id": "fing-9d28xcb",
+      "label": "Chalumeau E3 (Right Thumb Bottom Key first open)",
+      "targetNote": "E3",
+      "ventHoleId": "hole-oal84e3",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-aitxm04",
+      "label": "Clarion B4 (Right Thumb Bottom Key first open)",
+      "targetNote": "B4",
+      "ventHoleId": "hole-oal84e3",
+      "register": "third",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-o3jfeto",
+      "label": "Fingering 15",
+      "targetNote": "F3",
+      "ventHoleId": "hole-jyjaqds",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-tgwli0a",
+      "label": "Fingering 16",
+      "targetNote": "G3",
+      "ventHoleId": "hole-x7es19a",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-1o1ia70",
+      "label": "Fingering 17",
+      "targetNote": "A3",
+      "ventHoleId": "hole-cb215bb",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-554m82y",
+      "label": "Fingering 18",
+      "targetNote": "Bb3",
+      "ventHoleId": "hole-uq90rrd",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-l2wyg6e",
+      "label": "Fingering 19",
+      "targetNote": "C4",
+      "ventHoleId": "hole-2qn3mxm",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-jr31oe5",
+      "label": "Fingering 20",
+      "targetNote": "D4",
+      "ventHoleId": "hole-wdf37gx",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-3gnkz69",
+      "label": "Fingering 21",
+      "targetNote": "E4",
+      "ventHoleId": "hole-tl93rdd",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    }
+  ]
+}

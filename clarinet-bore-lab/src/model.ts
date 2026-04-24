@@ -14,11 +14,16 @@ export type BoreBend = {
   label: string;
   /** Position along acoustic path from mouthpiece (mm) */
   pathDistanceMm: number;
-  /** Bend angle in degrees (0 = straight, 90 = right angle fold). */
+  /** Bend angle in degrees. Positive = rightward for XZ, upward for YZ. */
   bendAngleDeg: number;
-  /** Bend axis: "xz" (bend in xz plane), "yz" (bend in yz plane). */
+  /** Bend axis: "xz" (bends left/right), "yz" (bends up/down). */
   bendAxisPlane: "xz" | "yz";
+  /** Centerline radius of the pipe bend elbow (mm). Larger = gentler curve. Defaults to 50. */
+  bendRadiusMm?: number;
 };
+
+/** A point on the 3D bore path with its corresponding acoustic z coordinate. */
+export type PathPoint = Vec3 & { acousticZ: number };
 
 export type ToneHole = {
   id: string;
@@ -161,73 +166,101 @@ function minimalAngleDeltaDeg(aDeg: number, bDeg: number): number {
 /** 3D point */
 export type Vec3 = { x: number; y: number; z: number };
 
-/** Calculate 3D bore path from segments and bends. */
+/** Calculate 3D bore path from segments and bends. Each point carries its acoustic z (mm from bell). */
 export function calculateBorePathPoints(
   segments: BoreSegment[],
   bends: BoreBend[]
-): Vec3[] {
-  if (segments.length === 0) {
-    return [];
-  }
+): PathPoint[] {
+  if (segments.length === 0) return [];
 
-  const sortedSegments = [...segments].sort((a, b) => a.zMm - b.zMm);
-  const totalLength = totalBoreLengthMm(sortedSegments);
-  const sortedBends = [...bends].sort((a, b) => a.pathDistanceMm - b.pathDistanceMm);
+  const sortedSegs = [...segments].sort((a, b) => a.zMm - b.zMm);
+  const totalLength = totalBoreLengthMm(sortedSegs);
 
-  const points: Vec3[] = [];
-  let currentPos: Vec3 = { x: 0, y: 0, z: 0 };
-  let currentDirection: Vec3 = { x: 0, y: 0, z: 1 }; // initial direction toward mouthpiece
+  const mappedBends = bends
+    .map((b) => ({ ...b, zFromBell: totalLength - b.pathDistanceMm }))
+    .filter((b) => b.zFromBell >= 0 && b.zFromBell <= totalLength)
+    .sort((a, b) => a.zFromBell - b.zFromBell);
 
-  // Add bell (z=0)
-  const segmentPoints = sortedSegments.map((s) => ({
-    ...s,
-    x: s.x ?? 0,
-    y: s.y ?? 0,
-  }));
+  // All waypoint z-positions: segment boundaries + bend positions
+  const waypointSet = new Set<number>();
+  sortedSegs.forEach((s) => waypointSet.add(s.zMm));
+  mappedBends.forEach((b) => waypointSet.add(b.zFromBell));
+  const allZ = Array.from(waypointSet).sort((a, b) => a - b);
 
-  // Build path segment by segment
-  for (let i = 0; i < segmentPoints.length; i += 1) {
-    const segment = segmentPoints[i];
-    const distFromBell = segment.zMm;
-    const distFromMouthpiece = totalLength - distFromBell;
+  // Rotation helpers — sign conventions match the original model XZ/YZ matrices
+  const rotXZ = (v: Vec3, rad: number): Vec3 => ({
+    x: v.x * Math.cos(rad) + v.z * Math.sin(rad),
+    y: v.y,
+    z: v.z * Math.cos(rad) - v.x * Math.sin(rad),
+  });
+  const rotYZ = (v: Vec3, rad: number): Vec3 => ({
+    x: v.x,
+    y: v.y * Math.cos(rad) + v.z * Math.sin(rad),
+    z: v.z * Math.cos(rad) - v.y * Math.sin(rad),
+  });
+  const rotInPlane = (v: Vec3, rad: number, plane: "xz" | "yz"): Vec3 =>
+    plane === "xz" ? rotXZ(v, rad) : rotYZ(v, rad);
+  const norm3 = (v: Vec3): Vec3 => {
+    const len = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
+    return len > 0 ? { x: v.x / len, y: v.y / len, z: v.z / len } : v;
+  };
 
-    // Check if there's a bend at this location
-    const bendAtThis = sortedBends.find(
-      (b) => Math.abs(b.pathDistanceMm - distFromMouthpiece) < 0.1
-    );
+  const points: PathPoint[] = [];
+  let pos: Vec3 = { x: 0, y: 0, z: 0 };
+  let dir: Vec3 = { x: 0, y: 0, z: 1 };
 
-    if (bendAtThis) {
-      // Apply bend rotation
-      const phi = (bendAtThis.bendAngleDeg * Math.PI) / 180;
-      if (bendAtThis.bendAxisPlane === "xz") {
-        const cos = Math.cos(phi);
-        const sin = Math.sin(phi);
-        const newZ = currentDirection.z * cos - currentDirection.x * sin;
-        const newX = currentDirection.x * cos + currentDirection.z * sin;
-        currentDirection = { x: newX, y: currentDirection.y, z: newZ };
-      } else {
-        const cos = Math.cos(phi);
-        const sin = Math.sin(phi);
-        const newZ = currentDirection.z * cos - currentDirection.y * sin;
-        const newY = currentDirection.y * cos + currentDirection.z * sin;
-        currentDirection = { x: currentDirection.x, y: newY, z: newZ };
+  for (let i = 0; i < allZ.length; i++) {
+    const z = allZ[i];
+    points.push({ ...pos, acousticZ: z });
+
+    const bend = mappedBends.find((b) => Math.abs(b.zFromBell - z) < 0.5);
+    if (bend) {
+      const φRad = (bend.bendAngleDeg * Math.PI) / 180;
+      const R = bend.bendRadiusMm ?? 50;
+      const ARC_STEPS = Math.max(8, Math.ceil(Math.abs(bend.bendAngleDeg) / 4));
+
+      // Perpendicular to dir in the bend plane toward the inside of the curve:
+      // rotate dir by +90° for positive angle, -90° for negative
+      const perpRad = φRad >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      const centerDir = norm3(rotInPlane(dir, perpRad, bend.bendAxisPlane));
+
+      const center: Vec3 = {
+        x: pos.x + R * centerDir.x,
+        y: pos.y + R * centerDir.y,
+        z: pos.z + R * centerDir.z,
+      };
+      const startVec: Vec3 = { x: pos.x - center.x, y: pos.y - center.y, z: pos.z - center.z };
+
+      // Generate arc points; step 0 is already pushed above as the straight-arrival point
+      let lastVec = startVec;
+      for (let step = 1; step <= ARC_STEPS; step++) {
+        const θ = (step / ARC_STEPS) * φRad;
+        lastVec = rotInPlane(startVec, θ, bend.bendAxisPlane);
+        points.push({
+          x: center.x + lastVec.x,
+          y: center.y + lastVec.y,
+          z: center.z + lastVec.z,
+          acousticZ: z,
+        });
       }
+
+      // Update position to arc end; update direction to post-bend direction
+      pos = { x: center.x + lastVec.x, y: center.y + lastVec.y, z: center.z + lastVec.z };
+      dir = norm3(rotInPlane(dir, φRad, bend.bendAxisPlane));
     }
 
-    // Segment length (use Z spacing as default)
-    const nextZ = i < segmentPoints.length - 1 ? segmentPoints[i + 1].zMm : segment.zMm;
-    const segmentLength = i === segmentPoints.length - 1 ? 0 : Math.abs(nextZ - segment.zMm);
-
-    // Add point and move along direction
-    points.push({ ...currentPos });
-    currentPos = {
-      x: currentPos.x + currentDirection.x * segmentLength,
-      y: currentPos.y + currentDirection.y * segmentLength,
-      z: currentPos.z + currentDirection.z * segmentLength,
-    };
+    // Advance along current direction to the next waypoint
+    if (i < allZ.length - 1) {
+      const segLen = allZ[i + 1] - z;
+      pos = {
+        x: pos.x + dir.x * segLen,
+        y: pos.y + dir.y * segLen,
+        z: pos.z + dir.z * segLen,
+      };
+    }
   }
 
-  points.push(currentPos); // Add final mouthpiece point
+  points.push({ ...pos, acousticZ: totalLength });
   return points;
 }
 

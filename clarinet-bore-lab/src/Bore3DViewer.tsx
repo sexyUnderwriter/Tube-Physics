@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { BoreSegment, BoreBend, calculateBorePathPoints } from "./model";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { BoreSegment, BoreBend, PathPoint, calculateBorePathPoints } from "./model";
 
 interface Bore3DViewerProps {
   segments: BoreSegment[];
@@ -12,67 +13,65 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const bendHelperRef = useRef<Map<string, THREE.Object3D>>(new Map());
+  const controlsRef = useRef<OrbitControls | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x222222);
+    scene.background = new THREE.Color(0x1a1a1a);
     sceneRef.current = scene;
 
-    // Camera
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
-    camera.position.set(150, 100, 150);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 10000);
+    camera.position.set(0, 200, 600);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, 100, 100);
-    scene.add(directionalLight);
+    // Orbit controls — enables mouse drag, scroll-zoom, right-click pan
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controlsRef.current = controls;
 
-    // Axes helper
-    const axesHelper = new THREE.AxesHelper(200);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(300, 500, 300);
+    scene.add(dirLight);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    fillLight.position.set(-200, -100, -200);
+    scene.add(fillLight);
+
+    const axesHelper = new THREE.AxesHelper(50);
     scene.add(axesHelper);
 
-    // Grid helper
-    const gridHelper = new THREE.GridHelper(400, 20, 0x444444, 0x222222);
-    scene.add(gridHelper);
-
-    // Render loop
     const animate = () => {
       requestAnimationFrame(animate);
+      controls.update();
       renderer.render(scene, camera);
     };
     animate();
 
-    // Handle resize
     const handleResize = () => {
       if (!containerRef.current) return;
-      const newWidth = containerRef.current.clientWidth;
-      const newHeight = containerRef.current.clientHeight;
-      camera.aspect = newWidth / newHeight;
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(newWidth, newHeight);
+      renderer.setSize(w, h);
     };
     window.addEventListener("resize", handleResize);
 
-    // Cleanup
     return () => {
       window.removeEventListener("resize", handleResize);
+      controls.dispose();
       renderer.dispose();
       containerRef.current?.removeChild(renderer.domElement);
     };
@@ -91,91 +90,161 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
     });
     objectsToRemove.forEach((obj) => sceneRef.current?.remove(obj));
 
-    const points = calculateBorePathPoints(segments, bends);
-    if (points.length < 2) return;
+    const pathPoints = calculateBorePathPoints(segments, bends);
+    if (pathPoints.length < 2) return;
 
-    // Draw bore tube as a line
-    const lineGeometry = new THREE.BufferGeometry();
-    const linePositions = points.flatMap((p) => [p.x, p.y, p.z]);
-    lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(linePositions), 3));
-    
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
-    const line = new THREE.Line(lineGeometry, lineMaterial);
-    line.name = "bore-path";
-    sceneRef.current.add(line);
+    const sortedSegs = [...segments].sort((a, b) => a.zMm - b.zMm);
+    const totalZLength = sortedSegs.length > 0 ? sortedSegs[sortedSegs.length - 1].zMm : 0;
+    if (totalZLength <= 0) return;
 
-    // Draw bore as a tube with varying diameter
-    const tubeSegments = 32;
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const p1 = points[i];
-      const p2 = points[i + 1];
-
-      // Get diameter at this segment
-      const segment = segments[Math.min(i, segments.length - 1)];
-      const diameter = segment.diameterMm;
-      const radius = diameter * 0.5;
-
-      // Create a cylinder for this segment
-      const direction = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
-      const length = direction.length();
-      direction.normalize();
-
-      const geometry = new THREE.CylinderGeometry(radius, radius, length, tubeSegments);
-      const material = new THREE.MeshPhongMaterial({ 
-        color: 0x8b4513,
-        wireframe: false,
-        opacity: 0.7,
-        transparent: true,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-
-      // Position at midpoint
-      const midpoint = new THREE.Vector3(
-        (p1.x + p2.x) * 0.5,
-        (p1.y + p2.y) * 0.5,
-        (p1.z + p2.z) * 0.5
-      );
-      mesh.position.copy(midpoint);
-
-      // Orient along the path
-      const up = new THREE.Vector3(0, 1, 0);
-      if (Math.abs(direction.y) > 0.99) {
-        up.set(1, 0, 0);
+    // Linearly interpolate bore radius from acoustic z
+    const radiusAtAcousticZ = (az: number): number => {
+      if (az <= sortedSegs[0].zMm) return sortedSegs[0].diameterMm / 2;
+      if (az >= sortedSegs[sortedSegs.length - 1].zMm) return sortedSegs[sortedSegs.length - 1].diameterMm / 2;
+      for (let i = 0; i < sortedSegs.length - 1; i++) {
+        const s1 = sortedSegs[i], s2 = sortedSegs[i + 1];
+        if (az >= s1.zMm && az <= s2.zMm) {
+          const t = (az - s1.zMm) / (s2.zMm - s1.zMm);
+          return (s1.diameterMm + t * (s2.diameterMm - s1.diameterMm)) / 2;
+        }
       }
-      const right = new THREE.Vector3().crossVectors(direction, up).normalize();
-      up.crossVectors(right, direction);
+      return sortedSegs[sortedSegs.length - 1].diameterMm / 2;
+    };
 
-      const quaternion = new THREE.Quaternion();
-      const matrix = new THREE.Matrix4();
-      matrix.makeBasis(right, up, direction.clone().multiplyScalar(-1));
-      quaternion.setFromRotationMatrix(matrix);
-      mesh.quaternion.copy(quaternion);
+    // Build cumulative 3D arc lengths along the path
+    const arcLengths: number[] = [0];
+    for (let i = 1; i < pathPoints.length; i++) {
+      const p1 = pathPoints[i - 1], p2 = pathPoints[i];
+      arcLengths.push(
+        arcLengths[i - 1] + Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2 + (p2.z - p1.z) ** 2)
+      );
+    }
+    const totalArcLen = arcLengths[arcLengths.length - 1];
 
-      mesh.name = `bore-tube-${i}`;
-      sceneRef.current.add(mesh);
+    // Sample the path at arc-length s: returns 3D position + interpolated acoustic z
+    const sampleAtArc = (s: number): { pos: THREE.Vector3; acousticZ: number } => {
+      const clamped = Math.min(Math.max(s, 0), totalArcLen);
+      for (let i = 0; i < pathPoints.length - 1; i++) {
+        if (arcLengths[i + 1] >= clamped) {
+          const segLen = arcLengths[i + 1] - arcLengths[i];
+          const t = segLen > 0 ? (clamped - arcLengths[i]) / segLen : 0;
+          const p1: PathPoint = pathPoints[i], p2: PathPoint = pathPoints[i + 1];
+          return {
+            pos: new THREE.Vector3(
+              p1.x + t * (p2.x - p1.x),
+              p1.y + t * (p2.y - p1.y),
+              p1.z + t * (p2.z - p1.z)
+            ),
+            acousticZ: p1.acousticZ + t * (p2.acousticZ - p1.acousticZ),
+          };
+        }
+      }
+      const last = pathPoints[pathPoints.length - 1];
+      return { pos: new THREE.Vector3(last.x, last.y, last.z), acousticZ: last.acousticZ };
+    };
+
+    // Build rings uniformly along 3D arc length (correct for both straight and curved sections)
+    const RING_SEGMENTS = 32;
+    const NUM_RINGS = 150;
+    const positionsArr: number[] = [];
+    const indicesArr: number[] = [];
+    let prevU = new THREE.Vector3();
+
+    for (let ri = 0; ri <= NUM_RINGS; ri++) {
+      const s = (ri / NUM_RINGS) * totalArcLen;
+      const { pos: center, acousticZ } = sampleAtArc(s);
+
+      // Tangent: finite difference in arc-length space
+      const ds = totalArcLen * 0.004;
+      const cA = sampleAtArc(Math.max(0, s - ds)).pos;
+      const cB = sampleAtArc(Math.min(totalArcLen, s + ds)).pos;
+      const tangent = cB.clone().sub(cA).normalize();
+
+      let uAxis: THREE.Vector3;
+      let vAxis: THREE.Vector3;
+      if (ri === 0) {
+        const seed = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        uAxis = new THREE.Vector3().crossVectors(tangent, seed).normalize();
+        vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
+      } else {
+        uAxis = prevU.clone().addScaledVector(tangent, -prevU.dot(tangent)).normalize();
+        vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
+      }
+      prevU = uAxis.clone();
+
+      const r = radiusAtAcousticZ(acousticZ);
+      for (let si = 0; si < RING_SEGMENTS; si++) {
+        const angle = (si / RING_SEGMENTS) * Math.PI * 2;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        positionsArr.push(
+          center.x + r * (cos * uAxis.x + sin * vAxis.x),
+          center.y + r * (cos * uAxis.y + sin * vAxis.y),
+          center.z + r * (cos * uAxis.z + sin * vAxis.z)
+        );
+      }
+    }
+
+    // Stitch rings into triangles
+    for (let ri = 0; ri < NUM_RINGS; ri++) {
+      for (let si = 0; si < RING_SEGMENTS; si++) {
+        const a = ri * RING_SEGMENTS + si;
+        const b = ri * RING_SEGMENTS + (si + 1) % RING_SEGMENTS;
+        const c = (ri + 1) * RING_SEGMENTS + si;
+        const d = (ri + 1) * RING_SEGMENTS + (si + 1) % RING_SEGMENTS;
+        indicesArr.push(a, c, b, b, c, d);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positionsArr), 3));
+    geometry.setIndex(indicesArr);
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshPhongMaterial({
+      color: 0x8b4513,
+      opacity: 0.82,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = "bore-tube-0";
+    sceneRef.current.add(mesh);
+
+    // Bend markers: orange spheres at the arc midpoint of each bend
+    bends.forEach((bend, idx) => {
+      if (!sceneRef.current) return;
+      const bendAcousticZ = totalZLength - bend.pathDistanceMm;
+      const arcPts = pathPoints.filter((p) => Math.abs(p.acousticZ - bendAcousticZ) < 0.5);
+      if (arcPts.length === 0) return;
+      const mid = arcPts[Math.floor(arcPts.length / 2)];
+      const markerGeo = new THREE.SphereGeometry(6, 16, 16);
+      const markerMat = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+      const marker = new THREE.Mesh(markerGeo, markerMat);
+      marker.position.set(mid.x, mid.y, mid.z);
+      marker.name = `bore-bend-${idx}`;
+      sceneRef.current.add(marker);
+    });
+
+    // Auto-fit camera to the bore bounding box
+    if (cameraRef.current && controlsRef.current) {
+      const bbox = new THREE.Box3().setFromBufferAttribute(
+        geometry.getAttribute("position") as THREE.BufferAttribute
+      );
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const cam = cameraRef.current;
+      cam.near = maxDim * 0.001;
+      cam.far = maxDim * 20;
+      cam.position.set(center.x + maxDim * 0.8, center.y + maxDim * 0.4, center.z + maxDim * 0.8);
+      cam.lookAt(center);
+      cam.updateProjectionMatrix();
+      controlsRef.current.target.copy(center);
+      controlsRef.current.update();
     }
   }, [segments, bends]);
-
-  // Draw bend controllers
-  useEffect(() => {
-    if (!sceneRef.current) return;
-
-    // Clear previous bend helpers
-    bendHelperRef.current.forEach((obj) => sceneRef.current?.remove(obj));
-    bendHelperRef.current.clear();
-
-    bends.forEach((bend) => {
-      if (!sceneRef.current) return;
-      // Placeholder position - would need proper interpolation
-      const geometry = new THREE.SphereGeometry(10, 16, 16);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-      const sphere = new THREE.Mesh(geometry, material);
-      sphere.position.set(0, 0, bend.pathDistanceMm);
-      sphere.userData.bendId = bend.id;
-      sceneRef.current.add(sphere);
-      bendHelperRef.current.set(bend.id, sphere);
-    });
-  }, [bends]);
 
   return (
     <div
@@ -183,8 +252,10 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
       style={{
         width: "100%",
         height: "600px",
-        border: "1px solid #ccc",
+        border: "1px solid #333",
         position: "relative",
+        borderRadius: "4px",
+        overflow: "hidden",
       }}
     />
   );
