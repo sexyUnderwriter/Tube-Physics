@@ -1,7 +1,7 @@
 CLARINET_BORE_LAB_MODEL_V1
 {
   "version": 1,
-  "name": "Prototype Clarinet Bore (with bass clarinet bell)",
+  "name": "Prototype Bassoon in F",
   "tempC": 20,
   "pitchStandardHz": 440,
   "toleranceCents": 10,
@@ -63,7 +63,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-ol4e7ux",
       "label": "Finger 7",
       "zMm": 180.16636698113902,
+      "outerZMm": 180.16636698113902,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 9,
       "chimneyMm": 3.643916223248635,
       "targetNote": "G2"
@@ -72,7 +75,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-yjsrcal",
       "label": "Finger 6",
       "zMm": 305.71541850782893,
+      "outerZMm": 305.71541850782893,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 5.5,
       "chimneyMm": 4.904412237035805,
       "targetNote": "A2"
@@ -81,7 +87,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-y413ezt",
       "label": "Finger 5",
       "zMm": 350.4658905799804,
+      "outerZMm": 350.4658905799804,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 7,
       "chimneyMm": 4.6380616669048935,
       "targetNote": "A#2"
@@ -90,7 +99,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-hzj3dbn",
       "label": "Finger 4",
       "zMm": 447.6044687979813,
+      "outerZMm": 447.6044687979813,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 7.476798830337461,
       "chimneyMm": 4.065,
       "targetNote": "C3"
@@ -99,7 +111,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-cctkvgp",
       "label": "Finger 3",
       "zMm": 533.2901209618359,
+      "outerZMm": 533.2901209618359,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 7.348885269064094,
       "chimneyMm": 4.065,
       "targetNote": "D3"
@@ -108,7 +123,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-o7fp5b0",
       "label": "Finger 2",
       "zMm": 604.0253065161835,
+      "outerZMm": 604.0253065161835,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 6.969452032443372,
       "chimneyMm": 4.065,
       "targetNote": "E3"
@@ -117,7 +135,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-z2nbyu1",
       "label": "Finger 1",
       "zMm": 639.1864722231912,
+      "outerZMm": 639.1864722231912,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 6.976860854062391,
       "chimneyMm": 4.065,
       "targetNote": "F3"
@@ -126,7 +147,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-3sym609",
       "label": "Thumb",
       "zMm": 712,
+      "outerZMm": 712,
+      "lockInnerOuterZ": true,
       "angleDeg": -180,
+      "drillAngleDeg": 0,
       "diameterMm": 6.966475345531341,
       "chimneyMm": 4.065,
       "targetNote": "D3"
@@ -135,7 +159,10 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "hole-meqxoqk",
       "label": "Front Key",
       "zMm": 750,
+      "outerZMm": 750,
+      "lockInnerOuterZ": true,
       "angleDeg": 0,
+      "drillAngleDeg": 0,
       "diameterMm": 7,
       "chimneyMm": 3,
       "targetNote": "A3"
