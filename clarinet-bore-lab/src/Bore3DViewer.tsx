@@ -1,14 +1,21 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { BoreSegment, BoreBend, PathPoint, calculateBorePathPoints } from "./model";
+import {
+  BoreSegment,
+  BoreBend,
+  PathPoint,
+  ToneHole,
+  calculateBorePathPoints,
+} from "./model";
 
 interface Bore3DViewerProps {
   segments: BoreSegment[];
   bends: BoreBend[];
+  holes: ToneHole[];
 }
 
-export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
+export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -143,6 +150,49 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
       return { pos: new THREE.Vector3(last.x, last.y, last.z), acousticZ: last.acousticZ };
     };
 
+    const sampleAtAcousticZ = (
+      targetZ: number
+    ): { pos: THREE.Vector3; tangent: THREE.Vector3 } => {
+      const z = Math.min(Math.max(targetZ, 0), totalZLength);
+      for (let i = 0; i < pathPoints.length - 1; i++) {
+        const p1 = pathPoints[i];
+        const p2 = pathPoints[i + 1];
+        const z1 = p1.acousticZ;
+        const z2 = p2.acousticZ;
+        const dz = z2 - z1;
+        if (Math.abs(dz) < 1e-9) continue;
+        const lo = Math.min(z1, z2);
+        const hi = Math.max(z1, z2);
+        if (z >= lo && z <= hi) {
+          const t = (z - z1) / dz;
+          const pos = new THREE.Vector3(
+            p1.x + t * (p2.x - p1.x),
+            p1.y + t * (p2.y - p1.y),
+            p1.z + t * (p2.z - p1.z)
+          );
+          const tangent = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
+          return { pos, tangent };
+        }
+      }
+
+      let bestIdx = 0;
+      let bestDiff = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < pathPoints.length; i++) {
+        const d = Math.abs(pathPoints[i].acousticZ - z);
+        if (d < bestDiff) {
+          bestDiff = d;
+          bestIdx = i;
+        }
+      }
+      const at = pathPoints[bestIdx];
+      const prev = pathPoints[Math.max(0, bestIdx - 1)];
+      const next = pathPoints[Math.min(pathPoints.length - 1, bestIdx + 1)];
+      const tangent = new THREE.Vector3(next.x - prev.x, next.y - prev.y, next.z - prev.z);
+      if (tangent.lengthSq() < 1e-9) tangent.set(0, 0, 1);
+      tangent.normalize();
+      return { pos: new THREE.Vector3(at.x, at.y, at.z), tangent };
+    };
+
     // Build rings uniformly along 3D arc length (correct for both straight and curved sections)
     const RING_SEGMENTS = 32;
     const NUM_RINGS = 150;
@@ -210,6 +260,57 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
     mesh.name = "bore-tube-0";
     sceneRef.current.add(mesh);
 
+    // Tone holes: chimney tube + inner aperture + outer opening.
+    holes.forEach((hole, idx) => {
+      const holeZ = Math.min(Math.max(hole.zMm, 0), totalZLength);
+      const { pos: centerPos, tangent } = sampleAtAcousticZ(holeZ);
+      const holeRadius = Math.max(hole.diameterMm * 0.5, 0.3);
+      const localBoreRadius = radiusAtAcousticZ(holeZ);
+
+      const seed = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+      const uAxis = new THREE.Vector3().crossVectors(tangent, seed).normalize();
+      const vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
+      const circumfRad = (hole.angleDeg * Math.PI) / 180;
+      const radialDir = uAxis.multiplyScalar(Math.cos(circumfRad)).add(vAxis.multiplyScalar(Math.sin(circumfRad))).normalize();
+
+      const aperturePos = centerPos.clone().add(radialDir.clone().multiplyScalar(localBoreRadius));
+
+      const outerZ = hole.outerZMm ?? hole.zMm;
+      const axialMm = outerZ - hole.zMm;
+      const cappedAxial = Math.max(-hole.chimneyMm, Math.min(hole.chimneyMm, axialMm));
+      const radialMm = Math.sqrt(Math.max(0, hole.chimneyMm ** 2 - cappedAxial ** 2));
+      const openingPos = aperturePos
+        .clone()
+        .add(tangent.clone().multiplyScalar(cappedAxial))
+        .add(radialDir.clone().multiplyScalar(radialMm));
+
+      const chimneyVec = openingPos.clone().sub(aperturePos);
+      const chimneyLen = chimneyVec.length();
+      if (chimneyLen > 0.05) {
+        const chimneyGeom = new THREE.CylinderGeometry(holeRadius, holeRadius, chimneyLen, 16);
+        const chimneyMat = new THREE.MeshPhongMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.9 });
+        const chimneyMesh = new THREE.Mesh(chimneyGeom, chimneyMat);
+        chimneyMesh.position.copy(aperturePos.clone().add(openingPos).multiplyScalar(0.5));
+        chimneyMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), chimneyVec.clone().normalize());
+        chimneyMesh.name = `bore-hole-chimney-${idx}`;
+        sceneRef.current?.add(chimneyMesh);
+      }
+
+      const apertureGeom = new THREE.SphereGeometry(Math.max(holeRadius * 0.45, 0.6), 12, 12);
+      const apertureMat = new THREE.MeshBasicMaterial({ color: 0xffcaa4 });
+      const apertureMesh = new THREE.Mesh(apertureGeom, apertureMat);
+      apertureMesh.position.copy(aperturePos);
+      apertureMesh.name = `bore-hole-aperture-${idx}`;
+      sceneRef.current?.add(apertureMesh);
+
+      const openingGeom = new THREE.SphereGeometry(Math.max(holeRadius * 0.6, 0.75), 12, 12);
+      const openingMat = new THREE.MeshBasicMaterial({ color: 0xff6a00 });
+      const openingMesh = new THREE.Mesh(openingGeom, openingMat);
+      openingMesh.position.copy(openingPos);
+      openingMesh.name = `bore-hole-opening-${idx}`;
+      sceneRef.current?.add(openingMesh);
+    });
+
     // Bend markers: orange spheres at the arc midpoint of each bend
     bends.forEach((bend, idx) => {
       if (!sceneRef.current) return;
@@ -244,7 +345,7 @@ export function Bore3DViewer({ segments, bends }: Bore3DViewerProps) {
       controlsRef.current.target.copy(center);
       controlsRef.current.update();
     }
-  }, [segments, bends]);
+  }, [segments, bends, holes]);
 
   return (
     <div

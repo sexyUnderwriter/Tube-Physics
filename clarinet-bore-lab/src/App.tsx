@@ -3229,7 +3229,7 @@ export default function App() {
             </div>
           </div>
 
-          <Bore3DViewer segments={segments} bends={bends} />
+          <Bore3DViewer segments={segments} bends={bends} holes={holes} />
 
           <p className="math">
             Add bends to route the tube like a bassoon using smooth pipe elbows. Acoustic
