@@ -352,13 +352,77 @@ export function Bore3DViewer({
 
     const material = new THREE.MeshPhongMaterial({
       color: 0x8b4513,
-      opacity: 0.82,
+      opacity: 0.55,
       transparent: true,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = "bore-tube-0";
     sceneRef.current.add(mesh);
+
+    // Inner bore surface — separate ring array using inner radius
+    {
+      const innerPositions: number[] = [];
+      const innerIndices: number[] = [];
+      let prevUInner = new THREE.Vector3();
+
+      for (let ri = 0; ri <= NUM_RINGS; ri++) {
+        const s = (ri / NUM_RINGS) * totalArcLen;
+        const { pos: center, acousticZ } = sampleAtArc(s);
+        const ds = totalArcLen * 0.004;
+        const cA = sampleAtArc(Math.max(0, s - ds)).pos;
+        const cB = sampleAtArc(Math.min(totalArcLen, s + ds)).pos;
+        const tangent = cB.clone().sub(cA).normalize();
+
+        let uAxis: THREE.Vector3;
+        let vAxis: THREE.Vector3;
+        if (ri === 0) {
+          const seed = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+          uAxis = new THREE.Vector3().crossVectors(tangent, seed).normalize();
+          vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
+        } else {
+          uAxis = prevUInner.clone().addScaledVector(tangent, -prevUInner.dot(tangent)).normalize();
+          vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
+        }
+        prevUInner = uAxis.clone();
+
+        const r = innerRadiusAtAcousticZ(acousticZ);
+        for (let si = 0; si < RING_SEGMENTS; si++) {
+          const angle = (si / RING_SEGMENTS) * Math.PI * 2;
+          const cos = Math.cos(angle), sin = Math.sin(angle);
+          innerPositions.push(
+            center.x + r * (cos * uAxis.x + sin * vAxis.x),
+            center.y + r * (cos * uAxis.y + sin * vAxis.y),
+            center.z + r * (cos * uAxis.z + sin * vAxis.z)
+          );
+        }
+      }
+
+      for (let ri = 0; ri < NUM_RINGS; ri++) {
+        for (let si = 0; si < RING_SEGMENTS; si++) {
+          const a = ri * RING_SEGMENTS + si;
+          const b = ri * RING_SEGMENTS + (si + 1) % RING_SEGMENTS;
+          const c = (ri + 1) * RING_SEGMENTS + si;
+          const d = (ri + 1) * RING_SEGMENTS + (si + 1) % RING_SEGMENTS;
+          innerIndices.push(a, c, b, b, c, d);
+        }
+      }
+
+      const innerGeometry = new THREE.BufferGeometry();
+      innerGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(innerPositions), 3));
+      innerGeometry.setIndex(innerIndices);
+      innerGeometry.computeVertexNormals();
+
+      const innerMaterial = new THREE.MeshPhongMaterial({
+        color: 0xc8a46e,
+        opacity: 0.92,
+        transparent: true,
+        side: THREE.BackSide,
+      });
+      const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+      innerMesh.name = "bore-inner-0";
+      sceneRef.current.add(innerMesh);
+    }
 
     // Add physical mouthpiece extension beyond acoustic endpoint, matching the 2D tip treatment.
     let mouthpieceTipMesh: THREE.Mesh | null = null;

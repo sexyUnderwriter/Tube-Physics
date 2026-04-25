@@ -1,7 +1,7 @@
 CLARINET_BORE_LAB_MODEL_V1
 {
   "version": 1,
-  "name": "Prototype Bassoon in F (all keys)",
+  "name": "Prototype Bassoon in F (all keys) - Ergonomic v2",
   "tempC": 20,
   "pitchStandardHz": 440,
   "toleranceCents": 10,
@@ -49,32 +49,58 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Bell join (bore transition)",
       "zMm": 150,
       "diameterMm": 19.05,
-      "outerDiameterMm": 24
+      "outerDiameterMm": 24,
+      "interpolationGroup": "body-taper"
+    },
+    {
+      "id": "seg-body-mid-1",
+      "label": "Body taper node 1",
+      "zMm": 320,
+      "diameterMm": 18.4,
+      "outerDiameterMm": 22.2,
+      "interpolationGroup": "body-taper"
+    },
+    {
+      "id": "seg-body-mid-2",
+      "label": "Body taper node 2",
+      "zMm": 500,
+      "diameterMm": 17.5,
+      "outerDiameterMm": 20.8,
+      "interpolationGroup": "body-taper"
+    },
+    {
+      "id": "seg-body-mid-3",
+      "label": "Body taper node 3",
+      "zMm": 700,
+      "diameterMm": 16.6,
+      "outerDiameterMm": 19.4,
+      "interpolationGroup": "body-taper"
     },
     {
       "id": "seg-wur3mke",
       "label": "Barrell",
-      "zMm": 891.3999999999999,
+      "zMm": 891.4,
       "diameterMm": 15.87,
-      "outerDiameterMm": 17
+      "outerDiameterMm": 17,
+      "interpolationGroup": "body-taper"
     }
   ],
   "bends": [
     {
       "id": "bend-87tsuq0",
       "label": "Bend 1",
-      "pathDistanceMm": 374,
+      "pathDistanceMm": 407.4,
       "bendAngleDeg": 180,
       "bendAxisPlane": "yz",
-      "bendRadiusMm": 8
+      "bendRadiusMm": 9
     },
     {
       "id": "bend-39ty1wh",
       "label": "Bend 2",
-      "pathDistanceMm": 25.7,
-      "bendAngleDeg": 90,
+      "pathDistanceMm": 26.7,
+      "bendAngleDeg": 84,
       "bendAxisPlane": "xz",
-      "bendRadiusMm": 50
+      "bendRadiusMm": 34
     }
   ],
   "mouthpiece": {
@@ -88,37 +114,37 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "hole-ol4e7ux",
       "label": "Left Thumb Top Key",
-      "zMm": 218.7739814657148,
-      "outerZMm": 218.7739814657148,
+      "zMm": 205,
+      "outerZMm": 205,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 4.372483997308913,
-      "chimneyMm": 2.6224920832620526,
+      "diameterMm": 4.5,
+      "chimneyMm": 2.8,
       "targetNote": "G2"
     },
     {
       "id": "hole-gb37fk5",
       "label": "Left Thumb Hole",
-      "zMm": 291.22943431753964,
-      "outerZMm": 291.22943431753964,
+      "zMm": 292.9116122644407,
+      "outerZMm": 292.9116122644407,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 7.953564718796633,
-      "chimneyMm": 2.7778794180805075,
+      "diameterMm": 9.2,
+      "chimneyMm": 1.9916224879290976,
       "targetNote": "A2"
     },
     {
       "id": "hole-lpvqnz4",
       "label": "Right Thumb Top Key",
-      "zMm": 434.62372307877047,
-      "outerZMm": 434.62372307877047,
+      "zMm": 450,
+      "outerZMm": 450,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 7.0009613021625965,
-      "chimneyMm": 3.085401564196445,
+      "diameterMm": 7.4,
+      "chimneyMm": 3,
       "targetNote": "C3"
     },
     {
@@ -129,8 +155,8 @@ CLARINET_BORE_LAB_MODEL_V1
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 7.452962294028188,
-      "chimneyMm": 4.065,
+      "diameterMm": 7.45,
+      "chimneyMm": 4.06,
       "targetNote": "D3"
     },
     {
@@ -141,116 +167,116 @@ CLARINET_BORE_LAB_MODEL_V1
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 7.380680390000007,
-      "chimneyMm": 4.065,
+      "diameterMm": 7.25,
+      "chimneyMm": 4.1,
       "targetNote": "E3"
     },
     {
       "id": "hole-yhh0wl4",
       "label": "Left Thumb Hole (small)",
-      "zMm": 340.69563165142347,
-      "outerZMm": 340.69563165142347,
+      "zMm": 390,
+      "outerZMm": 390,
       "lockInnerOuterZ": true,
       "angleDeg": -180,
       "drillAngleDeg": 0,
-      "diameterMm": 7,
-      "chimneyMm": 2.8839641952060475,
+      "diameterMm": 6.2,
+      "chimneyMm": 3.2,
       "targetNote": "A#2"
     },
     {
       "id": "hole-jyjaqds",
       "label": "Hole 6 (Right Front)",
-      "zMm": 677.6537682457399,
-      "outerZMm": 677.6537682457399,
+      "zMm": 700,
+      "outerZMm": 700,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 5,
-      "chimneyMm": 3.606601688037127,
+      "diameterMm": 5.8,
+      "chimneyMm": 3,
       "targetNote": "G3"
     },
     {
       "id": "hole-cb215bb",
       "label": "Hole 4 (Right Front)",
-      "zMm": 789.1325446251681,
-      "outerZMm": 789.1325446251681,
+      "zMm": 744.6399421429362,
+      "outerZMm": 744.6399421429362,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 7.284182961436151,
-      "chimneyMm": 3.8456781035257865,
+      "diameterMm": 6.2,
+      "chimneyMm": 1.2052541709020268,
       "targetNote": "Bb3"
     },
     {
       "id": "hole-x7es19a",
       "label": "Hole 5 (Right Front)",
-      "zMm": 730.4194146129173,
-      "outerZMm": 730.4194146129173,
+      "zMm": 730,
+      "outerZMm": 730,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
       "diameterMm": 5,
-      "chimneyMm": 3.7197624348995664,
+      "chimneyMm": 4,
       "targetNote": "A3"
     },
     {
       "id": "hole-uq90rrd",
       "label": "Hole 3 (Left Front)",
-      "zMm": 840.6088432213205,
-      "outerZMm": 840.6088432213205,
+      "zMm": 790.6457144846122,
+      "outerZMm": 790.6457144846122,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 7.290107376779004,
-      "chimneyMm": 3.956073726358106,
+      "diameterMm": 6.2,
+      "chimneyMm": 1.004549782682071,
       "targetNote": "C4"
     },
     {
       "id": "hole-2qn3mxm",
       "label": "Hole 2 (Left Front)",
-      "zMm": 844.0480761730104,
-      "outerZMm": 844.0480761730104,
+      "zMm": 806.56114750028,
+      "outerZMm": 806.56114750028,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 5.517602763173196,
-      "chimneyMm": 3.9634494754721974,
+      "diameterMm": 5.2,
+      "chimneyMm": 0.9351172509784025,
       "targetNote": "D4"
     },
     {
       "id": "hole-wdf37gx",
       "label": "Left Front Key",
-      "zMm": 911.789215434948,
-      "outerZMm": 911.789215434948,
+      "zMm": 906,
+      "outerZMm": 906,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 7.085662236496745,
-      "chimneyMm": 0.4619458132907521,
+      "diameterMm": 6.9,
+      "chimneyMm": 0.49120652173913015,
       "targetNote": "F4"
     },
     {
       "id": "hole-tl93rdd",
       "label": "Hole 1 (Left Front)",
-      "zMm": 865.1621996089845,
-      "outerZMm": 865.1621996089845,
+      "zMm": 861.7122115974246,
+      "outerZMm": 861.7122115974246,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 6.134856864429653,
-      "chimneyMm": 0.6325940096396545,
+      "diameterMm": 6,
+      "chimneyMm": 0.6945156913069512,
       "targetNote": "E4"
     },
     {
       "id": "hole-sha1i8p",
       "label": "Right Front Bottom Key",
-      "zMm": 630.4792309293889,
-      "outerZMm": 630.4792309293889,
+      "zMm": 650,
+      "outerZMm": 650,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
-      "diameterMm": 6.999863323353048,
-      "chimneyMm": 3.5054315850792133,
+      "diameterMm": 7.1,
+      "chimneyMm": 3.5,
       "targetNote": "F3"
     }
   ],
@@ -433,12 +459,12 @@ CLARINET_BORE_LAB_MODEL_V1
     }
   ],
   "cameraState": {
-    "positionX": -27.8036902286418,
-    "positionY": 232.7737019471281,
-    "positionZ": 716.0847441678815,
-    "targetX": 12.600188820080305,
-    "targetY": -48.26760009105529,
-    "targetZ": 319.3817413827732
+    "positionX": -18.26979402293639,
+    "positionY": 300.1454448410616,
+    "positionZ": 399.7313886243088,
+    "targetX": -18.199942912814254,
+    "targetY": 51.3881711718107,
+    "targetZ": 399.3150921177691
   },
-  "notes": "Bb3, A3 and G3 need to be close enough to accomodate the first 3 fingers of the right hand, AND \n\nD3 should be approximately horizontal to A3 for the right thumb.\n\nC4, D4 and E4 need to be close enough to accomodate the first 3 fingers of the left hand, AND\n\nA2 should be approximately horizontal to D4 for the left thumb. \n\nSuggest bore dimensions, chimney lengths, finger hole diameters, and bore segment lengths to accomplish this and remain generally in tune.  Perfect pitch is not required but fifths and octaves should stay true. Thirds can be flattened by up to 20 cents.\n\nIf you change where the bends are located, read the labels and ensure that the pitches after the bend (from the bottom of the sounding tube up) start at F3, as they do now.\n"
+  "notes": "A2 is locked in as left thumb\n\nD3 is locked in as right thumb\n\n\n"
 }
