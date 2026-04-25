@@ -1823,6 +1823,200 @@ export default function App() {
     }
   }
 
+  function printBuildReport(): void {
+    const sortedHoles = [...holes].sort((a, b) => a.zMm - b.zMm);
+    const sortedSegments = [...segments].sort((a, b) => a.zMm - b.zMm);
+
+    // Wall thickness at a given z by linear interpolation of segments
+    function wallAt(zMm: number): number | null {
+      const segs = sortedSegments;
+      if (segs.length === 0) return null;
+      if (segs.length === 1) {
+        return segs[0].outerDiameterMm != null ? (segs[0].outerDiameterMm - segs[0].diameterMm) / 2 : null;
+      }
+      // find surrounding segments
+      let lo = segs[0];
+      let hi = segs[segs.length - 1];
+      for (let i = 0; i < segs.length - 1; i++) {
+        if (zMm >= segs[i].zMm && zMm <= segs[i + 1].zMm) {
+          lo = segs[i];
+          hi = segs[i + 1];
+          break;
+        }
+      }
+      if (lo.outerDiameterMm == null || hi.outerDiameterMm == null) return null;
+      const span = hi.zMm - lo.zMm;
+      const t = span === 0 ? 0 : (zMm - lo.zMm) / span;
+      const outerD = lo.outerDiameterMm + t * (hi.outerDiameterMm - lo.outerDiameterMm);
+      const innerD = lo.diameterMm + t * (hi.diameterMm - lo.diameterMm);
+      return (outerD - innerD) / 2;
+    }
+
+    const physLen = physicalInstrumentLengthMm;
+    const date = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+
+    const segRows = sortedSegments.map((s) => {
+      const wall = s.outerDiameterMm != null ? ((s.outerDiameterMm - s.diameterMm) / 2).toFixed(1) : "—";
+      const od = s.outerDiameterMm != null ? s.outerDiameterMm.toFixed(1) : "—";
+      return `<tr><td>${s.label}</td><td>${s.zMm.toFixed(1)}</td><td>${s.diameterMm.toFixed(2)}</td><td>${od}</td><td>${wall}</td></tr>`;
+    }).join("");
+
+    const holeRows = sortedHoles.map((h, i) => {
+      const wall = wallAt(h.zMm);
+      const wallStr = wall != null ? wall.toFixed(1) : "—";
+      const drillDepth = wall != null ? (wall + h.chimneyMm).toFixed(1) : "—";
+      const prev = i > 0 ? sortedHoles[i - 1] : null;
+      const dist = prev != null ? (h.zMm - prev.zMm).toFixed(1) : "—";
+      const result = resultByHoleId.get(h.id);
+      const cents = result?.centsErrorToTarget != null ? `${result.centsErrorToTarget > 0 ? "+" : ""}${result.centsErrorToTarget.toFixed(0)}¢` : "—";
+      const holeDiameterIn = h.diameterMm / 25.4;
+      const bestBitIndex = findClosestNotOverDrillBitIndex(holeDiameterIn, ALL_DRILL_BITS);
+      const bestBit = bestBitIndex >= 0 ? ALL_DRILL_BITS[bestBitIndex] : null;
+      const bestBitLabel = bestBit
+        ? `${formatDrillBitLabel(bestBit)} (${inchesToMm(bestBit.diameterIn).toFixed(2)} mm)`
+        : "No standard bit";
+      return `<tr>
+        <td>${h.label}</td>
+        <td>${h.zMm.toFixed(1)}</td>
+        <td>${(totalLengthMm - h.zMm).toFixed(1)}</td>
+        <td>${dist}</td>
+        <td>${h.diameterMm.toFixed(2)}</td>
+        <td>${bestBitLabel}</td>
+        <td>${h.chimneyMm.toFixed(1)}</td>
+        <td>${wallStr}</td>
+        <td>${drillDepth}</td>
+        <td>${h.targetNote}</td>
+        <td>${cents}</td>
+      </tr>`;
+    }).join("");
+
+    const fingRows = fingeringResults.map((r) => {
+      const hz = r.predictedHz != null ? r.predictedHz.toFixed(2) : "—";
+      const cents = r.centsErrorToTarget != null
+        ? `${r.centsErrorToTarget > 0 ? "+" : ""}${r.centsErrorToTarget.toFixed(0)}¢`
+        : "—";
+      const ok = r.withinTolerance ? "✓" : "✗";
+      return `<tr><td>${r.label}</td><td>${r.targetNote}</td><td>${r.register}</td><td>${hz}</td><td>${cents}</td><td style="text-align:center">${ok}</td></tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Build Report — ${name}</title>
+<style>
+  @page { size: letter portrait; margin: 14mm 14mm 12mm 14mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 8pt; color: #111; }
+  .page { width: 100%; }
+  .print-controls { margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+  .print-controls button { border: 1px solid #333; background: #fff; color: #111; padding: 4px 9px; font-size: 8pt; cursor: pointer; }
+  .print-controls span { font-size: 7pt; color: #555; }
+  h1 { font-size: 13pt; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 1px; }
+  .subtitle { font-size: 8pt; color: #555; margin-bottom: 6px; }
+  .meta-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px 10px; margin-bottom: 8px; border-bottom: 1.5px solid #111; padding-bottom: 6px; }
+  .meta-item { display: flex; flex-direction: column; }
+  .meta-item span { font-size: 6.5pt; color: #777; text-transform: uppercase; letter-spacing: 0.3px; }
+  .meta-item strong { font-size: 9pt; font-weight: 600; }
+  h2 { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #333; margin: 8px 0 3px; border-bottom: 0.75px solid #bbb; padding-bottom: 1px; }
+  table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+  th { background: #f0f0f0; font-weight: 600; text-align: left; padding: 2px 4px; border: 0.5px solid #ccc; font-size: 6.5pt; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 2px 4px; border: 0.5px solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; margin-top: 0; }
+  .note-box { margin-top: 8px; border: 0.75px solid #ccc; padding: 5px 7px; font-size: 7pt; color: #444; background: #fafafa; }
+  .note-box p { margin-top: 3px; }
+  .footer { margin-top: 8px; border-top: 0.75px solid #bbb; padding-top: 3px; font-size: 6.5pt; color: #888; display: flex; justify-content: space-between; }
+
+  @media print {
+    .print-controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="print-controls">
+    <button type="button" onclick="window.print()">Print / Save as PDF</button>
+    <span>If preview hangs, close it and try "Save as PDF" from this button again.</span>
+  </div>
+  <h1>${name}</h1>
+  <div class="subtitle">Woodwind Bore Lab — Instrument Build Report</div>
+  <div class="meta-grid">
+    <div class="meta-item"><span>Date</span><strong>${date}</strong></div>
+    <div class="meta-item"><span>Pipe type</span><strong>${pipeType === "open" ? "Open-open" : "Closed-open"}</strong></div>
+    <div class="meta-item"><span>Temperature</span><strong>${tempC} °C</strong></div>
+    <div class="meta-item"><span>Pitch standard</span><strong>A = ${pitchStandardHz} Hz</strong></div>
+    <div class="meta-item"><span>Speed of sound</span><strong>${cMs.toFixed(1)} m/s</strong></div>
+    <div class="meta-item"><span>Acoustic length</span><strong>${totalLengthMm.toFixed(1)} mm</strong></div>
+    <div class="meta-item"><span>Physical length</span><strong>${physLen.toFixed(1)} mm</strong></div>
+    <div class="meta-item"><span>All-closed fund.</span><strong>${currentAllClosedFundamentalHz.toFixed(2)} Hz</strong></div>
+    <div class="meta-item"><span>Mouthpiece insert</span><strong>${mouthpiece.insertMm.toFixed(1)} mm</strong></div>
+    <div class="meta-item"><span>Tolerance</span><strong>±${toleranceCents} ¢</strong></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <h2>Bore Profile (z from bell)</h2>
+      <table>
+        <thead><tr>
+          <th>Point</th><th>z (mm)</th><th>Bore ⌀ (mm)</th><th>Outer ⌀ (mm)</th><th>Wall (mm)</th>
+        </tr></thead>
+        <tbody>${segRows}</tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Fingering Predictions</h2>
+      <table>
+        <thead><tr>
+          <th>Fingering</th><th>Target</th><th>Reg.</th><th>Hz</th><th>Cents</th><th>OK?</th>
+        </tr></thead>
+        <tbody>${fingRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>Tone Holes — Drill Measurements (ordered bell → mouthpiece)</h2>
+  <table>
+    <thead><tr>
+      <th>Hole</th>
+      <th>z from bell (mm)</th>
+      <th>z from head (mm)</th>
+      <th>Gap to prev (mm)</th>
+      <th>Drill ⌀ target (mm)</th>
+      <th>Closest bit (not over)</th>
+      <th>Chimney (mm)</th>
+      <th>Wall (mm)</th>
+      <th>Drill depth (mm)</th>
+      <th>Target note</th>
+      <th>Tuning</th>
+    </tr></thead>
+    <tbody>${holeRows}</tbody>
+  </table>
+
+  <div class="note-box">
+    <strong>Notes</strong>
+    <p>z from bell = distance measured from the open (foot) end. z from head = distance from the blowing end / mouthpiece. Gap to prev = centre-to-centre distance from the next lower hole.
+    Drill depth = wall thickness + chimney height (total depth to drill before breaking through into bore). Closest bit uses the nearest standard drill size that does not exceed the target diameter. All dimensions in millimetres unless noted.</p>
+  </div>
+
+  <div class="footer">
+    <span>Woodwind Bore Lab — woodwind air-column design tool</span>
+    <span>Generated ${new Date().toLocaleString()}</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=850,height=1100");
+    if (!win) {
+      alert("Pop-up blocked — please allow pop-ups for this page and try again.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+  }
+
   async function handleLoadTextFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
     if (!file) {
@@ -2790,6 +2984,7 @@ export default function App() {
             <button type="button" onClick={saveToTextFile}>Save as text file</button>
             <button type="button" onClick={downloadTextFile}>Download text file</button>
             <button type="button" onClick={openTextFileDialog}>Load from text file</button>
+            <button type="button" onClick={printBuildReport}>Print build report</button>
             {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
           </div>
           {loadStatus && <p className="math">{loadStatus}</p>}
