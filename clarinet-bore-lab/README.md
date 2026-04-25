@@ -1,4 +1,4 @@
-# Clarinet Bore Lab
+# Woodwind Bore Lab
 
 React + TypeScript UI for experimenting with clarinet bore geometry and evaluating tone-hole placement using a first-order closed-open air-column model.
 

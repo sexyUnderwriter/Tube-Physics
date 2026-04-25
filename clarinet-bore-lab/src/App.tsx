@@ -1761,7 +1761,7 @@ export default function App() {
           suggestedName,
           types: [
             {
-              description: "Clarinet Bore Lab snapshot",
+              description: "Woodwind Bore Lab snapshot",
               accept: { "text/plain": [".txt"] },
             },
           ],
@@ -1831,7 +1831,7 @@ export default function App() {
     const text = await file.text();
     const snapshot = parseSnapshotFile(text);
     if (!snapshot) {
-      setLoadStatus("Could not read this file. Expected Clarinet Bore Lab text format.");
+      setLoadStatus("Could not read this file. Expected Woodwind Bore Lab text format.");
       event.target.value = "";
       return;
     }
@@ -2546,8 +2546,8 @@ export default function App() {
     <div className="page-shell">
       <header className="hero">
         <div>
-          <p className="kicker">Clarinet Air Column Designer</p>
-          <h1>Clarinet Bore Lab</h1>
+          <p className="kicker">Woodwind Air Column Designer</p>
+          <h1>Woodwind Bore Lab</h1>
           <div className="quick-calc" aria-label="Millimeter to imperial drill size converter">
             <h3>Quick Drill Converter</h3>
             <div className="quick-calc-row">
