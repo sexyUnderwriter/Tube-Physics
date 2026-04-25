@@ -17,28 +17,32 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Bell opening",
       "zMm": 0,
       "diameterMm": 60,
-      "outerDiameterMm": 66
+      "outerDiameterMm": 66,
+      "interpolationGroup": "1"
     },
     {
       "id": "seg-bell-mid-low",
       "label": "Bell mid (lower)",
       "zMm": 40,
       "diameterMm": 40,
-      "outerDiameterMm": 46
+      "outerDiameterMm": 46,
+      "interpolationGroup": "1"
     },
     {
       "id": "seg-bell-mid",
       "label": "Bell mid",
       "zMm": 80,
       "diameterMm": 25,
-      "outerDiameterMm": 31
+      "outerDiameterMm": 31,
+      "interpolationGroup": "1"
     },
     {
       "id": "seg-bell-throat",
       "label": "Bell throat",
       "zMm": 115,
       "diameterMm": 20,
-      "outerDiameterMm": 27
+      "outerDiameterMm": 27,
+      "interpolationGroup": "1"
     },
     {
       "id": "seg-bell-join",
@@ -52,7 +56,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "label": "Barrell",
       "zMm": 891.3999999999999,
       "diameterMm": 15.87,
-      "outerDiameterMm": 24
+      "outerDiameterMm": 17
     }
   ],
   "bends": [
@@ -63,6 +67,14 @@ CLARINET_BORE_LAB_MODEL_V1
       "bendAngleDeg": 180,
       "bendAxisPlane": "yz",
       "bendRadiusMm": 8
+    },
+    {
+      "id": "bend-39ty1wh",
+      "label": "Bend 2",
+      "pathDistanceMm": 25.7,
+      "bendAngleDeg": 90,
+      "bendAxisPlane": "xz",
+      "bendRadiusMm": 50
     }
   ],
   "mouthpiece": {
@@ -207,27 +219,27 @@ CLARINET_BORE_LAB_MODEL_V1
     },
     {
       "id": "hole-wdf37gx",
-      "label": "Hole 1 (Left Front)",
-      "zMm": 915.2219096395269,
-      "outerZMm": 915.2219096395269,
+      "label": "Left Front Key",
+      "zMm": 911.789215434948,
+      "outerZMm": 911.789215434948,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
       "diameterMm": 7.085662236496745,
-      "chimneyMm": 3.944595782800217,
-      "targetNote": "E4"
+      "chimneyMm": 0.4619458132907521,
+      "targetNote": "F4"
     },
     {
       "id": "hole-tl93rdd",
-      "label": "Right Front Key",
-      "zMm": 907.6664038941078,
-      "outerZMm": 907.6664038941078,
+      "label": "Hole 1 (Left Front)",
+      "zMm": 865.1621996089845,
+      "outerZMm": 865.1621996089845,
       "lockInnerOuterZ": true,
       "angleDeg": 0,
       "drillAngleDeg": 0,
       "diameterMm": 6.134856864429653,
-      "chimneyMm": 3.9827839368395637,
-      "targetNote": "F4"
+      "chimneyMm": 0.6325940096396545,
+      "targetNote": "E4"
     },
     {
       "id": "hole-sha1i8p",
@@ -407,7 +419,7 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "fing-3gnkz69",
       "label": "Fingering 21",
       "targetNote": "E4",
-      "ventHoleId": "hole-wdf37gx",
+      "ventHoleId": "hole-tl93rdd",
       "register": "fundamental",
       "termination": "vent-hole"
     },
@@ -415,9 +427,17 @@ CLARINET_BORE_LAB_MODEL_V1
       "id": "fing-v3ho7xf",
       "label": "Fingering 22",
       "targetNote": "F4",
-      "ventHoleId": "hole-tl93rdd",
+      "ventHoleId": "hole-wdf37gx",
       "register": "fundamental",
       "termination": "vent-hole"
     }
-  ]
+  ],
+  "cameraState": {
+    "positionX": 11.733212606718157,
+    "positionY": 517.2981131452118,
+    "positionZ": 317.73144942780806,
+    "targetX": 11.733358927130345,
+    "targetY": 41.955904922673376,
+    "targetZ": 317.73099697764275
+  }
 }

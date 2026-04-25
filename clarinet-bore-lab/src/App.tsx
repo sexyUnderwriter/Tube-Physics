@@ -534,6 +534,15 @@ const MANUAL_REGISTER_NONE = "__none__";
 // Set to true when troubleshooting host/browser audio-routing issues.
 const SHOW_AUDIO_DIAGNOSTICS = false;
 
+type CameraState = {
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+};
+
 type DesignSnapshot = {
   version: 1;
   name: string;
@@ -551,6 +560,8 @@ type DesignSnapshot = {
   mouthpiece: MouthpieceGeometry;
   holes: ToneHole[];
   fingerings: Fingering[];
+  cameraState?: CameraState;
+  notes?: string;
 };
 
 type LegacyToneHole = Omit<ToneHole, "zMm" | "angleDeg"> & {
@@ -737,6 +748,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
       mouthpiece,
       holes: normalizedHoles,
       fingerings: normalizedFingerings,
+      cameraState: parsed.cameraState,
     };
   } catch {
     return null;
@@ -792,6 +804,8 @@ export default function App() {
     useState<HoleTriangulationSolution | null>(null);
   const [audioDiagReport, setAudioDiagReport] = useState<string>("");
   const [audioDiagRunning, setAudioDiagRunning] = useState(false);
+  const [cameraState, setCameraState] = useState<CameraState | undefined>(undefined);
+  const [notes, setNotes] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const manualAudioContextRef = useRef<AudioContext | null>(null);
   const manualOscillatorRef = useRef<OscillatorNode | null>(null);
@@ -1662,6 +1676,8 @@ export default function App() {
     setMouthpiece(saved.mouthpiece);
     setHoles(saved.holes);
     setFingerings(saved.fingerings);
+    setCameraState(saved.cameraState);
+    setNotes(saved.notes ?? "");
 
     const preset = findMouthpiecePreset(saved.selectedMouthpieceId) ?? defaultMouthpiecePreset;
     setSelectedMouthpieceId(preset.id);
@@ -1686,6 +1702,8 @@ export default function App() {
       mouthpiece,
       holes,
       fingerings,
+      cameraState,
+      notes: notes || undefined,
     };
   }
 
@@ -3342,15 +3360,41 @@ export default function App() {
             </div>
           </div>
 
-          <Bore3DViewer
-            segments={acousticSegments}
-            bends={bends}
-            holes={holes}
-            results={results}
-            showHolePitch={showHolePitch}
-            mouthpieceOverallLengthMm={mouthpiece.overallLengthMm}
-            mouthpieceBoreMm={mouthpiece.boreMm}
-          />
+          <div style={{ display: "flex", gap: "12px", alignItems: "stretch" }}>
+            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+              <Bore3DViewer
+                segments={acousticSegments}
+                bends={bends}
+                holes={holes}
+                results={results}
+                showHolePitch={showHolePitch}
+                mouthpieceOverallLengthMm={mouthpiece.overallLengthMm}
+                mouthpieceBoreMm={mouthpiece.boreMm}
+                cameraState={cameraState}
+                onCameraChange={setCameraState}
+              />
+            </div>
+            <div style={{ width: "560px", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontWeight: 600, fontSize: "0.85rem", color: "#ccc" }}>Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Observations on experimental data…"
+                style={{
+                  flex: 1,
+                  resize: "none",
+                  background: "#1e1e1e",
+                  color: "#e0e0e0",
+                  border: "1px solid #444",
+                  borderRadius: "4px",
+                  padding: "8px",
+                  fontFamily: "monospace",
+                  fontSize: "0.82rem",
+                  lineHeight: 1.5,
+                }}
+              />
+            </div>
+          </div>
 
           <p className="math">
             Add bends to route the tube like a bassoon using smooth pipe elbows. Acoustic

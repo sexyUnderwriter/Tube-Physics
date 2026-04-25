@@ -18,6 +18,8 @@ interface Bore3DViewerProps {
   showHolePitch?: boolean;
   mouthpieceOverallLengthMm?: number;
   mouthpieceBoreMm?: number;
+  cameraState?: { positionX: number; positionY: number; positionZ: number; targetX: number; targetY: number; targetZ: number };
+  onCameraChange?: (state: { positionX: number; positionY: number; positionZ: number; targetX: number; targetY: number; targetZ: number }) => void;
 }
 
 export function Bore3DViewer({
@@ -28,6 +30,8 @@ export function Bore3DViewer({
   showHolePitch = false,
   mouthpieceOverallLengthMm = 0,
   mouthpieceBoreMm = 0,
+  cameraState = undefined,
+  onCameraChange,
 }: Bore3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -97,6 +101,45 @@ export function Bore3DViewer({
       containerRef.current?.removeChild(renderer.domElement);
     };
   }, []);
+
+  // Restore camera state if provided
+  useEffect(() => {
+    if (cameraState && cameraRef.current && controlsRef.current && cameraInitializedRef.current) {
+      cameraRef.current.position.set(cameraState.positionX, cameraState.positionY, cameraState.positionZ);
+      controlsRef.current.target.set(cameraState.targetX, cameraState.targetY, cameraState.targetZ);
+      cameraRef.current.updateProjectionMatrix();
+      controlsRef.current.update();
+    }
+  }, [cameraState]);
+
+  // Monitor camera changes and report them
+  useEffect(() => {
+    if (!cameraRef.current || !controlsRef.current || !onCameraChange) return;
+
+    let lastReportTime = 0;
+    const reportInterval = 100; // Report at most every 100ms
+
+    const handleCameraChange = () => {
+      const now = Date.now();
+      if (now - lastReportTime > reportInterval) {
+        lastReportTime = now;
+        onCameraChange({
+          positionX: cameraRef.current!.position.x,
+          positionY: cameraRef.current!.position.y,
+          positionZ: cameraRef.current!.position.z,
+          targetX: controlsRef.current!.target.x,
+          targetY: controlsRef.current!.target.y,
+          targetZ: controlsRef.current!.target.z,
+        });
+      }
+    };
+
+    controlsRef.current.addEventListener("change", handleCameraChange);
+
+    return () => {
+      controlsRef.current?.removeEventListener("change", handleCameraChange);
+    };
+  }, [onCameraChange]);
 
   // Draw bore geometry
   useEffect(() => {
@@ -496,7 +539,7 @@ export function Bore3DViewer({
       ref={containerRef}
       style={{
         width: "100%",
-        height: "600px",
+        height: "900px",
         border: "1px solid #333",
         position: "relative",
         borderRadius: "4px",
