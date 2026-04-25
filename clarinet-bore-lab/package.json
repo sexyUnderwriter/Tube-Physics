@@ -10,6 +10,8 @@
     "smoke:test": "tsx scripts/smoke-hole-physics.ts"
   },
   "dependencies": {
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.184.0"

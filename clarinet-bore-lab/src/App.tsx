@@ -1,4 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   BoreSegment,
   BoreBend,
@@ -1823,6 +1825,169 @@ export default function App() {
     }
   }
 
+  function downloadPdfReport(): void {
+    const sortedHoles = [...holes].sort((a, b) => a.zMm - b.zMm);
+    const sortedSegments = [...segments].sort((a, b) => a.zMm - b.zMm);
+
+    function wallAt(zMm: number): number | null {
+      const segs = sortedSegments;
+      if (segs.length === 0) return null;
+      if (segs.length === 1) {
+        return segs[0].outerDiameterMm != null
+          ? (segs[0].outerDiameterMm - segs[0].diameterMm) / 2
+          : null;
+      }
+      let lo = segs[0];
+      let hi = segs[segs.length - 1];
+      for (let i = 0; i < segs.length - 1; i += 1) {
+        if (zMm >= segs[i].zMm && zMm <= segs[i + 1].zMm) {
+          lo = segs[i];
+          hi = segs[i + 1];
+          break;
+        }
+      }
+      if (lo.outerDiameterMm == null || hi.outerDiameterMm == null) return null;
+      const span = hi.zMm - lo.zMm;
+      const t = span === 0 ? 0 : (zMm - lo.zMm) / span;
+      const outerD = lo.outerDiameterMm + t * (hi.outerDiameterMm - lo.outerDiameterMm);
+      const innerD = lo.diameterMm + t * (hi.diameterMm - lo.diameterMm);
+      return (outerD - innerD) / 2;
+    }
+
+    const reportDate = new Date();
+    const reportDateLabel = reportDate.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const safeName = (name || "instrument-build-report")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const fileName = `${safeName || "instrument-build-report"}-build-report.pdf`;
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(name || "Instrument Build Report", 10, 11);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Woodwind Bore Lab - Builder Report (Letter, single page)", 10, 15);
+
+    const rightMeta = [
+      `Date: ${reportDateLabel}`,
+      `Pipe: ${pipeType === "open" ? "Open-open" : "Closed-open"}`,
+      `Temp: ${tempC.toFixed(1)} C`,
+      `A4: ${pitchStandardHz.toFixed(1)} Hz`,
+      `Acoustic L: ${totalLengthMm.toFixed(1)} mm`,
+      `Physical L: ${physicalInstrumentLengthMm.toFixed(1)} mm`,
+      `Mouthpiece insert: ${mouthpiece.insertMm.toFixed(1)} mm`,
+    ];
+    rightMeta.forEach((line, idx) => {
+      doc.text(line, pageWidth - 10, 11 + idx * 3.7, { align: "right" });
+    });
+
+    const partRows = sortedSegments.map((segment) => {
+      const od = segment.outerDiameterMm != null ? segment.outerDiameterMm.toFixed(2) : "-";
+      const wall =
+        segment.outerDiameterMm != null
+          ? ((segment.outerDiameterMm - segment.diameterMm) / 2).toFixed(2)
+          : "-";
+      return [
+        segment.label,
+        segment.zMm.toFixed(1),
+        segment.diameterMm.toFixed(2),
+        od,
+        wall,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 42,
+      margin: { left: 10, right: 10 },
+      head: [["Body Segment", "z from bell (mm)", "Inner bore D (mm)", "Outer D (mm)", "Wall (mm)"]],
+      body: partRows,
+      theme: "grid",
+      styles: { fontSize: 6.8, cellPadding: 1.2 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
+    });
+
+    const holeRows = sortedHoles.map((hole, i) => {
+      const wall = wallAt(hole.zMm);
+      const wallStr = wall != null ? wall.toFixed(1) : "-";
+      const drillDepth = wall != null ? (wall + hole.chimneyMm).toFixed(1) : "-";
+      const prev = i > 0 ? sortedHoles[i - 1] : null;
+      const gapToPrev = prev != null ? (hole.zMm - prev.zMm).toFixed(1) : "-";
+
+      const holeDiameterIn = hole.diameterMm / 25.4;
+      const bestBitIndex = findClosestNotOverDrillBitIndex(holeDiameterIn, ALL_DRILL_BITS);
+      const bestBit = bestBitIndex >= 0 ? ALL_DRILL_BITS[bestBitIndex] : null;
+      const bestBitLabel = bestBit
+        ? `${formatDrillBitLabel(bestBit)} (${inchesToMm(bestBit.diameterIn).toFixed(2)} mm)`
+        : "No standard";
+
+      return [
+        hole.label,
+        hole.zMm.toFixed(1),
+        (totalLengthMm - hole.zMm).toFixed(1),
+        gapToPrev,
+        hole.diameterMm.toFixed(2),
+        bestBitLabel,
+        hole.chimneyMm.toFixed(1),
+        wallStr,
+        drillDepth,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 95,
+      margin: { left: 10, right: 10 },
+      head: [[
+        "Hole",
+        "z bell",
+        "z head",
+        "Gap prev",
+        "Drill D",
+        "Closest bit <=",
+        "Chimney",
+        "Wall",
+        "Depth",
+      ]],
+      body: holeRows,
+      theme: "grid",
+      styles: { fontSize: 6.2, cellPadding: 1.0 },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 12 },
+        2: { cellWidth: 12 },
+        3: { cellWidth: 12 },
+        4: { cellWidth: 12 },
+        5: { cellWidth: 28 },
+        6: { cellWidth: 10 },
+        7: { cellWidth: 10 },
+        8: { cellWidth: 10 },
+      },
+      headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
+    });
+
+    const autoTableDoc = doc as jsPDF & { lastAutoTable?: { finalY: number } };
+    const notesY = Math.min((autoTableDoc.lastAutoTable?.finalY ?? 245) + 4, 257);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.text(
+      "Notes: z bell/head and gap are center-to-center distances in mm. Drill depth = wall + chimney. Closest bit is the nearest standard size that does not exceed target diameter.",
+      10,
+      notesY,
+      { maxWidth: pageWidth - 20 }
+    );
+
+    doc.save(fileName);
+    setLastSavedAt(new Date().toLocaleTimeString());
+    setLoadStatus(`Downloaded ${fileName}`);
+  }
+
   function printBuildReport(): void {
     const sortedHoles = [...holes].sort((a, b) => a.zMm - b.zMm);
     const sortedSegments = [...segments].sort((a, b) => a.zMm - b.zMm);
@@ -2984,6 +3149,7 @@ export default function App() {
             <button type="button" onClick={saveToTextFile}>Save as text file</button>
             <button type="button" onClick={downloadTextFile}>Download text file</button>
             <button type="button" onClick={openTextFileDialog}>Load from text file</button>
+            <button type="button" onClick={downloadPdfReport}>Download PDF report</button>
             <button type="button" onClick={printBuildReport}>Print build report</button>
             {lastSavedAt && <span className="badge neutral">Saved at {lastSavedAt}</span>}
           </div>
