@@ -16,14 +16,25 @@ interface Bore3DViewerProps {
   holes: ToneHole[];
   results?: HoleEvaluation[];
   showHolePitch?: boolean;
+  mouthpieceOverallLengthMm?: number;
+  mouthpieceBoreMm?: number;
 }
 
-export function Bore3DViewer({ segments, bends, holes, results = [], showHolePitch = false }: Bore3DViewerProps) {
+export function Bore3DViewer({
+  segments,
+  bends,
+  holes,
+  results = [],
+  showHolePitch = false,
+  mouthpieceOverallLengthMm = 0,
+  mouthpieceBoreMm = 0,
+}: Bore3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const cameraInitializedRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -107,27 +118,50 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
     const totalZLength = sortedSegs.length > 0 ? sortedSegs[sortedSegs.length - 1].zMm : 0;
     if (totalZLength <= 0) return;
 
-    // Treat segments individually for visual geometry (stepwise diameter, no interpolation).
-    const findSegmentAtAcousticZ = (az: number): BoreSegment => {
-      if (az <= sortedSegs[0].zMm) return sortedSegs[0];
-      for (let i = 0; i < sortedSegs.length - 1; i++) {
-        if (az < sortedSegs[i + 1].zMm) {
-          return sortedSegs[i];
+    const normalizedGroup = (value: string | undefined): string => (value ?? "").trim();
+    const canInterpolatePair = (a: BoreSegment, b: BoreSegment): boolean => {
+      const ga = normalizedGroup(a.interpolationGroup);
+      return ga.length > 0 && ga === normalizedGroup(b.interpolationGroup);
+    };
+
+    const innerDiameterAtAcousticZ = (az: number): number => {
+      if (az <= sortedSegs[0].zMm) return sortedSegs[0].diameterMm;
+      for (let i = 0; i < sortedSegs.length - 1; i += 1) {
+        const a = sortedSegs[i];
+        const b = sortedSegs[i + 1];
+        if (az <= b.zMm) {
+          if (canInterpolatePair(a, b) && b.zMm > a.zMm) {
+            const t = (az - a.zMm) / (b.zMm - a.zMm);
+            return a.diameterMm + t * (b.diameterMm - a.diameterMm);
+          }
+          return a.diameterMm;
         }
       }
-      return sortedSegs[sortedSegs.length - 1];
+      return sortedSegs[sortedSegs.length - 1].diameterMm;
     };
 
-    const innerRadiusAtAcousticZ = (az: number): number => {
-      const seg = findSegmentAtAcousticZ(az);
-      return Math.max(seg.diameterMm * 0.5, 0.2);
+    const outerDiameterAtAcousticZ = (az: number): number => {
+      const outerOf = (s: BoreSegment) => s.outerDiameterMm ?? s.diameterMm;
+      if (az <= sortedSegs[0].zMm) return outerOf(sortedSegs[0]);
+      for (let i = 0; i < sortedSegs.length - 1; i += 1) {
+        const a = sortedSegs[i];
+        const b = sortedSegs[i + 1];
+        if (az <= b.zMm) {
+          if (canInterpolatePair(a, b) && b.zMm > a.zMm) {
+            const t = (az - a.zMm) / (b.zMm - a.zMm);
+            return outerOf(a) + t * (outerOf(b) - outerOf(a));
+          }
+          return outerOf(a);
+        }
+      }
+      return outerOf(sortedSegs[sortedSegs.length - 1]);
     };
 
-    const outerRadiusAtAcousticZ = (az: number): number => {
-      const seg = findSegmentAtAcousticZ(az);
-      const outerDia = seg.outerDiameterMm ?? seg.diameterMm;
-      return Math.max(outerDia * 0.5, 0.2);
-    };
+    const innerRadiusAtAcousticZ = (az: number): number =>
+      Math.max(innerDiameterAtAcousticZ(az) * 0.5, 0.2);
+
+    const outerRadiusAtAcousticZ = (az: number): number =>
+      Math.max(outerDiameterAtAcousticZ(az) * 0.5, 0.2);
 
     // Build cumulative 3D arc lengths along the path
     const arcLengths: number[] = [0];
@@ -283,6 +317,36 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
     mesh.name = "bore-tube-0";
     sceneRef.current.add(mesh);
 
+    // Add physical mouthpiece extension beyond acoustic endpoint, matching the 2D tip treatment.
+    let mouthpieceTipMesh: THREE.Mesh | null = null;
+    const tipLength = Math.max(mouthpieceOverallLengthMm, 0);
+    if (tipLength > 0) {
+      const tail = sampleAtArc(totalArcLen);
+      const beforeTail = sampleAtArc(Math.max(0, totalArcLen - Math.max(totalArcLen * 0.01, 1)));
+      const tailDir = tail.pos.clone().sub(beforeTail.pos).normalize();
+      if (tailDir.lengthSq() > 1e-9) {
+        const tipStart = tail.pos.clone();
+        const tipEnd = tail.pos.clone().add(tailDir.clone().multiplyScalar(tipLength));
+        const tipStartRadius = Math.max(mouthpieceBoreMm * 0.5, 0.3);
+        const tipEndRadius = 2;
+        const tipGeom = new THREE.CylinderGeometry(tipEndRadius, tipStartRadius, tipLength, 20);
+        const tipMat = new THREE.MeshPhongMaterial({
+          color: 0x7a5326,
+          opacity: 0.9,
+          transparent: true,
+          side: THREE.DoubleSide,
+        });
+        mouthpieceTipMesh = new THREE.Mesh(tipGeom, tipMat);
+        mouthpieceTipMesh.position.copy(tipStart.clone().add(tipEnd).multiplyScalar(0.5));
+        mouthpieceTipMesh.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          tipEnd.clone().sub(tipStart).normalize()
+        );
+        mouthpieceTipMesh.name = "bore-mouthpiece-tip";
+        sceneRef.current.add(mouthpieceTipMesh);
+      }
+    }
+
     // Tone holes: chimney tube + inner aperture + outer opening.
     holes.forEach((hole, idx) => {
       const holeZ = Math.min(Math.max(hole.zMm, 0), totalZLength);
@@ -387,11 +451,15 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
       sceneRef.current.add(marker);
     });
 
-    // Auto-fit camera to the bore bounding box
-    if (cameraRef.current && controlsRef.current) {
+    // Auto-fit camera to the bore bounding box on first load only
+    if (cameraRef.current && controlsRef.current && !cameraInitializedRef.current) {
+      cameraInitializedRef.current = true;
       const bbox = new THREE.Box3().setFromBufferAttribute(
         geometry.getAttribute("position") as THREE.BufferAttribute
       );
+      if (mouthpieceTipMesh) {
+        bbox.union(new THREE.Box3().setFromObject(mouthpieceTipMesh));
+      }
       const center = new THREE.Vector3();
       bbox.getCenter(center);
       const size = new THREE.Vector3();
@@ -405,6 +473,21 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
       cam.updateProjectionMatrix();
       controlsRef.current.target.copy(center);
       controlsRef.current.update();
+    } else if (cameraRef.current && controlsRef.current && cameraInitializedRef.current) {
+      // Update camera near/far planes for new geometry bounds, but preserve position
+      const bbox = new THREE.Box3().setFromBufferAttribute(
+        geometry.getAttribute("position") as THREE.BufferAttribute
+      );
+      if (mouthpieceTipMesh) {
+        bbox.union(new THREE.Box3().setFromObject(mouthpieceTipMesh));
+      }
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const cam = cameraRef.current;
+      cam.near = maxDim * 0.001;
+      cam.far = maxDim * 20;
+      cam.updateProjectionMatrix();
     }
   }, [segments, bends, holes, results, showHolePitch]);
 

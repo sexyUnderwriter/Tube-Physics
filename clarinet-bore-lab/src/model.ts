@@ -4,6 +4,8 @@ export type BoreSegment = {
   zMm: number;
   diameterMm: number;
   outerDiameterMm?: number;
+  /** Non-empty matching group on adjacent segments enables linear interpolation between them in visual geometry. */
+  interpolationGroup?: string;
   /** 3D position along the bore. If omitted, assumes straight line along z-axis. */
   x?: number;
   y?: number;

@@ -872,14 +872,29 @@ export default function App() {
       : null;
 
   const bodyLengthMm = useMemo(() => totalBoreLengthMm(segments), [segments]);
+  const bodyEndOuterDiameterMm = useMemo(() => {
+    if (segments.length === 0) {
+      return Math.max(mouthpiece.boreMm, 0);
+    }
+    const sorted = [...segments].sort((a, b) => a.zMm - b.zMm);
+    const end = sorted[sorted.length - 1];
+    return end.outerDiameterMm ?? end.diameterMm;
+  }, [mouthpiece.boreMm, segments]);
   const mouthpieceSegment = useMemo<BoreSegment>(
     () => ({
       id: "mouthpiece-point",
       label: mouthpiece.label,
       zMm: bodyLengthMm + Math.max(mouthpiece.insertMm, 0),
       diameterMm: Math.max(mouthpiece.boreMm, 0),
+      outerDiameterMm: Math.max(bodyEndOuterDiameterMm, mouthpiece.boreMm, 0),
     }),
-    [bodyLengthMm, mouthpiece.boreMm, mouthpiece.insertMm, mouthpiece.label]
+    [
+      bodyEndOuterDiameterMm,
+      bodyLengthMm,
+      mouthpiece.boreMm,
+      mouthpiece.insertMm,
+      mouthpiece.label,
+    ]
   );
   const acousticSegments = useMemo<BoreSegment[]>(
     () => [...segments, mouthpieceSegment],
@@ -1299,25 +1314,31 @@ export default function App() {
       (Math.max(radiusMm, 0) / maxRadius) * usableHalfHeight;
 
     const sortedSegsByZ = [...acousticSegments].sort((a, b) => a.zMm - b.zMm);
-    const segmentAtZMm = (zMm: number): BoreSegment => {
+    const normalizedGroup = (value: string | undefined): string => (value ?? "").trim();
+    const canInterpolatePair = (a: BoreSegment, b: BoreSegment): boolean => {
+      const ga = normalizedGroup(a.interpolationGroup);
+      return ga.length > 0 && ga === normalizedGroup(b.interpolationGroup);
+    };
+    const innerDiameterAtZMm = (zMm: number): number => {
       const z = Math.min(Math.max(zMm, 0), totalLengthMm);
       if (sortedSegsByZ.length === 0) {
-        return {
-          id: "fallback",
-          label: "fallback",
-          zMm: 0,
-          diameterMm: 14,
-        };
+        return 14;
       }
       if (z <= sortedSegsByZ[0].zMm) {
-        return sortedSegsByZ[0];
+        return sortedSegsByZ[0].diameterMm;
       }
       for (let i = 0; i < sortedSegsByZ.length - 1; i += 1) {
-        if (z < sortedSegsByZ[i + 1].zMm) {
-          return sortedSegsByZ[i];
+        const a = sortedSegsByZ[i];
+        const b = sortedSegsByZ[i + 1];
+        if (z <= b.zMm) {
+          if (canInterpolatePair(a, b) && b.zMm > a.zMm) {
+            const t = (z - a.zMm) / (b.zMm - a.zMm);
+            return a.diameterMm + t * (b.diameterMm - a.diameterMm);
+          }
+          return a.diameterMm;
         }
       }
-      return sortedSegsByZ[sortedSegsByZ.length - 1];
+      return sortedSegsByZ[sortedSegsByZ.length - 1].diameterMm;
     };
     const labelLaneHeight = showHolePitch ? 34 : 22;
     const minLabelGap = showHolePitch ? 14 : 10;
@@ -1328,8 +1349,7 @@ export default function App() {
       .map((hole) => {
         const clampedZ = Math.min(totalLengthMm, Math.max(0, hole.zMm));
         const x = zToSvg(clampedZ);
-        const localSeg = segmentAtZMm(clampedZ);
-        const localBoreMm = localSeg.diameterMm;
+        const localBoreMm = innerDiameterAtZMm(clampedZ);
         const localRadius = rToSvg(localBoreMm * 0.5);
         const drillAngleDeg = Math.max(-75, Math.min(75, hole.drillAngleDeg ?? 0));
         const phi = (drillAngleDeg * Math.PI) / 180;
@@ -1424,7 +1444,7 @@ export default function App() {
     // Build a closed polygon with piecewise-constant segment diameters.
     // Each segment keeps its own diameter until the next z boundary, then steps vertically.
     const buildSegmentPolygon = (
-      controlPts: Array<{ zMm: number; diameterMm: number }>
+      controlPts: Array<{ zMm: number; diameterMm: number; interpolationGroup?: string }>
     ): string => {
       const pts = [...controlPts].sort((a, b) => a.zMm - b.zMm);
       if (pts.length === 0) {
@@ -1437,16 +1457,31 @@ export default function App() {
       for (let i = 0; i < pts.length; i += 1) {
         const current = pts[i];
         const nextZ = i < pts.length - 1 ? pts[i + 1].zMm : current.zMm;
+        const next = i < pts.length - 1 ? pts[i + 1] : null;
         const x0 = zToSvg(current.zMm);
         const x1 = zToSvg(nextZ);
-        const r = rToSvg(current.diameterMm * 0.5);
+        const r0 = rToSvg(current.diameterMm * 0.5);
 
-        topPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY - r).toFixed(2)}`);
-        botPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY + r).toFixed(2)}`);
+        topPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY - r0).toFixed(2)}`);
+        botPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY + r0).toFixed(2)}`);
 
-        if (x1 > x0 + 0.001) {
-          topPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY - r).toFixed(2)}`);
-          botPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY + r).toFixed(2)}`);
+        if (next !== null && x1 > x0 + 0.001) {
+          const ga = normalizedGroup(current.interpolationGroup);
+          const gb = normalizedGroup(next.interpolationGroup);
+          const interpolate = ga.length > 0 && ga === gb;
+          if (interpolate) {
+            const r1 = rToSvg(next.diameterMm * 0.5);
+            topPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY - r1).toFixed(2)}`);
+            botPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY + r1).toFixed(2)}`);
+          } else {
+            topPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY - r0).toFixed(2)}`);
+            botPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY + r0).toFixed(2)}`);
+            const r1 = rToSvg(next.diameterMm * 0.5);
+            if (Math.abs(r1 - r0) > 1e-6) {
+              topPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY - r1).toFixed(2)}`);
+              botPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY + r1).toFixed(2)}`);
+            }
+          }
         }
       }
 
@@ -1476,13 +1511,20 @@ export default function App() {
 
     const innerControlPts = [...acousticSegments]
       .sort((a, b) => a.zMm - b.zMm)
-      .map((s) => ({ zMm: s.zMm, diameterMm: s.diameterMm }));
+      .map((s) => ({
+        zMm: s.zMm,
+        diameterMm: s.diameterMm,
+        interpolationGroup: s.interpolationGroup,
+      }));
     const polygon = buildSegmentPolygon(innerControlPts);
 
     const outerControlPts = [...acousticSegments]
-      .filter((s) => s.outerDiameterMm !== undefined && s.outerDiameterMm !== null)
       .sort((a, b) => a.zMm - b.zMm)
-      .map((s) => ({ zMm: s.zMm, diameterMm: s.outerDiameterMm! }));
+      .map((s) => ({
+        zMm: s.zMm,
+        diameterMm: s.outerDiameterMm ?? s.diameterMm,
+        interpolationGroup: s.interpolationGroup,
+      }));
     const outerPolygon = outerControlPts.length >= 2
       ? buildSegmentPolygon(outerControlPts)
       : null;
@@ -1492,7 +1534,7 @@ export default function App() {
     // from the top wall to the bottom wall.
     const segmentLines = acousticSegments.map((seg) => {
       const x = zToSvg(Math.max(seg.zMm, 0));
-      const localRadius = rToSvg(seg.diameterMm * 0.5);
+      const localRadius = rToSvg(innerDiameterAtZMm(Math.max(seg.zMm, 0)) * 0.5);
       return {
         id: seg.id,
         label: seg.label,
@@ -1774,6 +1816,20 @@ export default function App() {
   ): void {
     setSegments((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [key]: Number.isFinite(value) ? value : 0 } : s))
+    );
+  }
+
+  function updateSegmentInterpolationGroup(id: string, value: string): void {
+    const normalized = value.trim();
+    setSegments((prev) =>
+      prev.map((segment) =>
+        segment.id === id
+          ? {
+              ...segment,
+              interpolationGroup: normalized.length > 0 ? normalized : undefined,
+            }
+          : segment
+      )
     );
   }
 
@@ -2739,6 +2795,7 @@ export default function App() {
                     label: `Point ${prev.length + 1}`,
                     zMm: Math.max(...prev.map((segment) => segment.zMm), 0) + 40,
                     diameterMm: 14.8,
+                    interpolationGroup: undefined,
                   },
                 ])
               }
@@ -2758,6 +2815,7 @@ export default function App() {
                 <th>z (mm)</th>
                 <th>Inner dia (mm)</th>
                 <th>Outer dia (mm)</th>
+                <th>Interp group</th>
                 <th>Phys. L (mm)</th>
                 <th></th>
               </tr>
@@ -2825,6 +2883,19 @@ export default function App() {
                         value={segment.outerDiameterMm ?? ""}
                         onChange={(e) =>
                           updateSegmentOuterDiameter(segment.id, e.target.value)
+                        }
+                      />
+                    )}
+                  </td>
+                  <td>
+                    {source === "mouthpiece" ? (
+                      <span className="muted-cell">—</span>
+                    ) : (
+                      <input
+                        placeholder="e.g. bell"
+                        value={segment.interpolationGroup ?? ""}
+                        onChange={(e) =>
+                          updateSegmentInterpolationGroup(segment.id, e.target.value)
                         }
                       />
                     )}
@@ -3272,11 +3343,13 @@ export default function App() {
           </div>
 
           <Bore3DViewer
-            segments={segments}
+            segments={acousticSegments}
             bends={bends}
             holes={holes}
             results={results}
             showHolePitch={showHolePitch}
+            mouthpieceOverallLengthMm={mouthpiece.overallLengthMm}
+            mouthpieceBoreMm={mouthpiece.boreMm}
           />
 
           <p className="math">
