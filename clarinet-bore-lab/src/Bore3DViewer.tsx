@@ -107,18 +107,26 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
     const totalZLength = sortedSegs.length > 0 ? sortedSegs[sortedSegs.length - 1].zMm : 0;
     if (totalZLength <= 0) return;
 
-    // Linearly interpolate bore radius from acoustic z
-    const radiusAtAcousticZ = (az: number): number => {
-      if (az <= sortedSegs[0].zMm) return sortedSegs[0].diameterMm / 2;
-      if (az >= sortedSegs[sortedSegs.length - 1].zMm) return sortedSegs[sortedSegs.length - 1].diameterMm / 2;
+    // Treat segments individually for visual geometry (stepwise diameter, no interpolation).
+    const findSegmentAtAcousticZ = (az: number): BoreSegment => {
+      if (az <= sortedSegs[0].zMm) return sortedSegs[0];
       for (let i = 0; i < sortedSegs.length - 1; i++) {
-        const s1 = sortedSegs[i], s2 = sortedSegs[i + 1];
-        if (az >= s1.zMm && az <= s2.zMm) {
-          const t = (az - s1.zMm) / (s2.zMm - s1.zMm);
-          return (s1.diameterMm + t * (s2.diameterMm - s1.diameterMm)) / 2;
+        if (az < sortedSegs[i + 1].zMm) {
+          return sortedSegs[i];
         }
       }
-      return sortedSegs[sortedSegs.length - 1].diameterMm / 2;
+      return sortedSegs[sortedSegs.length - 1];
+    };
+
+    const innerRadiusAtAcousticZ = (az: number): number => {
+      const seg = findSegmentAtAcousticZ(az);
+      return Math.max(seg.diameterMm * 0.5, 0.2);
+    };
+
+    const outerRadiusAtAcousticZ = (az: number): number => {
+      const seg = findSegmentAtAcousticZ(az);
+      const outerDia = seg.outerDiameterMm ?? seg.diameterMm;
+      return Math.max(outerDia * 0.5, 0.2);
     };
 
     // Build cumulative 3D arc lengths along the path
@@ -237,7 +245,7 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
       }
       prevU = uAxis.clone();
 
-      const r = radiusAtAcousticZ(acousticZ);
+      const r = outerRadiusAtAcousticZ(acousticZ);
       for (let si = 0; si < RING_SEGMENTS; si++) {
         const angle = (si / RING_SEGMENTS) * Math.PI * 2;
         const cos = Math.cos(angle), sin = Math.sin(angle);
@@ -280,7 +288,7 @@ export function Bore3DViewer({ segments, bends, holes, results = [], showHolePit
       const holeZ = Math.min(Math.max(hole.zMm, 0), totalZLength);
       const { pos: centerPos, tangent, uAxis, vAxis } = sampleAtAcousticZ(holeZ);
       const holeRadius = Math.max(hole.diameterMm * 0.5, 0.3);
-      const localBoreRadius = radiusAtAcousticZ(holeZ);
+      const localBoreRadius = innerRadiusAtAcousticZ(holeZ);
 
       const circumfRad = (hole.angleDeg * Math.PI) / 180;
       const radialDir = uAxis.clone().multiplyScalar(Math.cos(circumfRad)).add(vAxis.clone().multiplyScalar(Math.sin(circumfRad))).normalize();

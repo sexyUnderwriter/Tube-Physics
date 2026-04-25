@@ -1297,6 +1297,28 @@ export default function App() {
 
     const rToSvg = (radiusMm: number): number =>
       (Math.max(radiusMm, 0) / maxRadius) * usableHalfHeight;
+
+    const sortedSegsByZ = [...acousticSegments].sort((a, b) => a.zMm - b.zMm);
+    const segmentAtZMm = (zMm: number): BoreSegment => {
+      const z = Math.min(Math.max(zMm, 0), totalLengthMm);
+      if (sortedSegsByZ.length === 0) {
+        return {
+          id: "fallback",
+          label: "fallback",
+          zMm: 0,
+          diameterMm: 14,
+        };
+      }
+      if (z <= sortedSegsByZ[0].zMm) {
+        return sortedSegsByZ[0];
+      }
+      for (let i = 0; i < sortedSegsByZ.length - 1; i += 1) {
+        if (z < sortedSegsByZ[i + 1].zMm) {
+          return sortedSegsByZ[i];
+        }
+      }
+      return sortedSegsByZ[sortedSegsByZ.length - 1];
+    };
     const labelLaneHeight = showHolePitch ? 34 : 22;
     const minLabelGap = showHolePitch ? 14 : 10;
     const topLaneRightEdges: number[] = [];
@@ -1306,8 +1328,8 @@ export default function App() {
       .map((hole) => {
         const clampedZ = Math.min(totalLengthMm, Math.max(0, hole.zMm));
         const x = zToSvg(clampedZ);
-        const holeDistanceMm = totalLengthMm - clampedZ;
-        const localBoreMm = diameterAtMm(acousticSegments, holeDistanceMm);
+        const localSeg = segmentAtZMm(clampedZ);
+        const localBoreMm = localSeg.diameterMm;
         const localRadius = rToSvg(localBoreMm * 0.5);
         const drillAngleDeg = Math.max(-75, Math.min(75, hole.drillAngleDeg ?? 0));
         const phi = (drillAngleDeg * Math.PI) / 180;
@@ -1399,42 +1421,56 @@ export default function App() {
       centerY + usableHalfHeight
     );
 
-    // Build a closed polygon from segment control points. When two adjacent segments
-    // share the same z position (within 0.5 mm) but different diameters, two vertices
-    // are inserted at the same x coordinate so the bore wall makes a 90-degree step
-    // rather than a diagonal convergence.
+    // Build a closed polygon with piecewise-constant segment diameters.
+    // Each segment keeps its own diameter until the next z boundary, then steps vertically.
     const buildSegmentPolygon = (
       controlPts: Array<{ zMm: number; diameterMm: number }>
     ): string => {
-      const STEP_THRESHOLD_MM = 0.5;
-      const pts: Array<{ zMm: number; diameterMm: number }> = [];
-      let i = 0;
-      while (i < controlPts.length) {
-        pts.push(controlPts[i]);
-        const next = i + 1 < controlPts.length ? controlPts[i + 1] : null;
-        if (
-          next !== null &&
-          Math.abs(next.zMm - controlPts[i].zMm) < STEP_THRESHOLD_MM
-        ) {
-          // Step boundary: push the new diameter at the same x before advancing.
-          pts.push(next);
-          i += 2;
-        } else {
-          i += 1;
+      const pts = [...controlPts].sort((a, b) => a.zMm - b.zMm);
+      if (pts.length === 0) {
+        return "";
+      }
+
+      const topPtsLeftToRight: string[] = [];
+      const botPtsLeftToRight: string[] = [];
+
+      for (let i = 0; i < pts.length; i += 1) {
+        const current = pts[i];
+        const nextZ = i < pts.length - 1 ? pts[i + 1].zMm : current.zMm;
+        const x0 = zToSvg(current.zMm);
+        const x1 = zToSvg(nextZ);
+        const r = rToSvg(current.diameterMm * 0.5);
+
+        topPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY - r).toFixed(2)}`);
+        botPtsLeftToRight.push(`${x0.toFixed(2)},${(centerY + r).toFixed(2)}`);
+
+        if (x1 > x0 + 0.001) {
+          topPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY - r).toFixed(2)}`);
+          botPtsLeftToRight.push(`${x1.toFixed(2)},${(centerY + r).toFixed(2)}`);
         }
       }
-      // Top edge traces right→left (mouthpiece to bell).
-      const topPts = [...pts].reverse().map(({ zMm, diameterMm }) => {
-        const x = zToSvg(zMm);
-        const r = rToSvg(diameterMm * 0.5);
-        return `${x.toFixed(2)},${(centerY - r).toFixed(2)}`;
-      });
-      // Bottom edge traces left→right (bell to mouthpiece).
-      const botPts = pts.map(({ zMm, diameterMm }) => {
-        const x = zToSvg(zMm);
-        const r = rToSvg(diameterMm * 0.5);
-        return `${x.toFixed(2)},${(centerY + r).toFixed(2)}`;
-      });
+
+      // Top edge traces right→left (mouthpiece to bell), bottom edge left→right.
+      const topPts = [...topPtsLeftToRight].reverse();
+      const botPts = botPtsLeftToRight;
+
+      if (topPts.length === 0 || botPts.length === 0) {
+        return "";
+      }
+
+      // Ensure mouthpiece-end closure includes last segment radius at the same x.
+      const last = pts[pts.length - 1];
+      const lastX = zToSvg(last.zMm);
+      const lastR = rToSvg(last.diameterMm * 0.5);
+      const mouthpieceTop = `${lastX.toFixed(2)},${(centerY - lastR).toFixed(2)}`;
+      const mouthpieceBottom = `${lastX.toFixed(2)},${(centerY + lastR).toFixed(2)}`;
+      if (topPts[0] !== mouthpieceTop) {
+        topPts.unshift(mouthpieceTop);
+      }
+      if (botPts[botPts.length - 1] !== mouthpieceBottom) {
+        botPts.push(mouthpieceBottom);
+      }
+
       return `${topPts.join(" ")} ${botPts.join(" ")}`;
     };
 
@@ -1456,7 +1492,7 @@ export default function App() {
     // from the top wall to the bottom wall.
     const segmentLines = acousticSegments.map((seg) => {
       const x = zToSvg(Math.max(seg.zMm, 0));
-      const localRadius = rToSvg(diameterAtMm(acousticSegments, totalLengthMm - seg.zMm) * 0.5);
+      const localRadius = rToSvg(seg.diameterMm * 0.5);
       return {
         id: seg.id,
         label: seg.label,
