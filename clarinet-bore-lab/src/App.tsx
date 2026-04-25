@@ -7,6 +7,7 @@ import {
   HoleEvaluation,
   HoleTriangulationMode,
   HoleTriangulationSolution,
+  PipeType,
   ToneHole,
   diameterAtMm,
   evaluateFingeringTuningSensitivities,
@@ -560,6 +561,7 @@ type DesignSnapshot = {
   mouthpiece: MouthpieceGeometry;
   holes: ToneHole[];
   fingerings: Fingering[];
+  pipeType: PipeType;
   cameraState?: CameraState;
   notes?: string;
 };
@@ -581,11 +583,13 @@ type SnapshotV1 = Omit<
   | "cockpitShowClarion"
   | "intonationShowChalumeau"
   | "intonationShowClarion"
+  | "pipeType"
 > & {
   cockpitShowChalumeau?: boolean;
   cockpitShowClarion?: boolean;
   intonationShowChalumeau?: boolean;
   intonationShowClarion?: boolean;
+  pipeType?: PipeType;
   bends?: BoreBend[];
   holes: Array<ToneHole | LegacyToneHole>;
   fingerings: Array<Fingering | LegacyFingering>;
@@ -748,6 +752,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
       mouthpiece,
       holes: normalizedHoles,
       fingerings: normalizedFingerings,
+      pipeType: parsed.pipeType === "open" ? "open" : "closed",
       cameraState: parsed.cameraState,
     };
   } catch {
@@ -790,7 +795,7 @@ export default function App() {
   const [manualPlaybackStatus, setManualPlaybackStatus] = useState("");
   const [solverOpenHoleId, setSolverOpenHoleId] = useState("");
   const [solverTargetHz, setSolverTargetHz] = useState("440");
-  const [solverRegister, setSolverRegister] = useState<"fundamental" | "third">(
+  const [solverRegister, setSolverRegister] = useState<"fundamental" | "second" | "third">(
     "fundamental"
   );
   const [solverMode, setSolverMode] = useState<HoleTriangulationMode>("z-and-diameter");
@@ -806,6 +811,7 @@ export default function App() {
   const [audioDiagRunning, setAudioDiagRunning] = useState(false);
   const [cameraState, setCameraState] = useState<CameraState | undefined>(undefined);
   const [notes, setNotes] = useState("");
+  const [pipeType, setPipeType] = useState<PipeType>("closed");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const manualAudioContextRef = useRef<AudioContext | null>(null);
   const manualOscillatorRef = useRef<OscillatorNode | null>(null);
@@ -967,8 +973,8 @@ export default function App() {
     () =>
       buildTargetFundamentalHz === null
         ? null
-        : requiredClosedTubeAcousticLengthMm(buildTargetFundamentalHz, tempC),
-    [buildTargetFundamentalHz, tempC]
+        : requiredClosedTubeAcousticLengthMm(buildTargetFundamentalHz, tempC, pipeType),
+    [buildTargetFundamentalHz, tempC, pipeType]
   );
   const requiredBodyLengthForTargetMm = useMemo(() => {
     if (requiredAcousticLengthForTargetMm === null) {
@@ -987,8 +993,8 @@ export default function App() {
     );
   }, [mouthpiece.insertMm, mouthpiece.overallLengthMm, requiredBodyLengthForTargetMm]);
   const currentAllClosedFundamentalHz = useMemo(
-    () => predictClosedTubeFundamentalHz(acousticSegments, tempC),
-    [acousticSegments, tempC]
+    () => predictClosedTubeFundamentalHz(acousticSegments, tempC, pipeType),
+    [acousticSegments, tempC, pipeType]
   );
   const currentAllClosedFundamentalCentsError = useMemo(() => {
     if (buildTargetFundamentalHz === null || currentAllClosedFundamentalHz <= 0) {
@@ -997,8 +1003,8 @@ export default function App() {
     return 1200 * Math.log2(currentAllClosedFundamentalHz / buildTargetFundamentalHz);
   }, [buildTargetFundamentalHz, currentAllClosedFundamentalHz]);
   const results = useMemo(
-    () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings),
-    [acousticSegments, holes, tempC, pitchStandardHz, fingerings]
+    () => evaluateToneHoles(acousticSegments, holes, tempC, pitchStandardHz, fingerings, pipeType),
+    [acousticSegments, holes, tempC, pitchStandardHz, fingerings, pipeType]
   );
   const resultByHoleId = useMemo(() => {
     const map = new Map<string, (typeof results)[number]>();
@@ -1023,9 +1029,10 @@ export default function App() {
         fingerings,
         tempC,
         toleranceCents,
-        pitchStandardHz
+        pitchStandardHz,
+        pipeType
       ),
-    [acousticSegments, holes, fingerings, tempC, toleranceCents, pitchStandardHz]
+    [acousticSegments, holes, fingerings, tempC, toleranceCents, pitchStandardHz, pipeType]
   );
   const tuningCockpitRows = useMemo<FingeringTuningSensitivity[]>(
     () =>
@@ -1034,9 +1041,11 @@ export default function App() {
         holes,
         fingerings,
         tempC,
-        pitchStandardHz
+        pitchStandardHz,
+        {},
+        pipeType
       ),
-    [acousticSegments, holes, fingerings, tempC, pitchStandardHz]
+    [acousticSegments, holes, fingerings, tempC, pitchStandardHz, pipeType]
   );
   const filteredTuningCockpitRows = useMemo(() => {
     return tuningCockpitRows.filter((row) => {
@@ -1133,7 +1142,8 @@ export default function App() {
       targetHz,
       tempC,
       solverRegister,
-      solverMode
+      solverMode,
+      pipeType
     );
 
     if (!solution) {
@@ -1221,7 +1231,8 @@ export default function App() {
       ],
       tempC,
       toleranceCents,
-      pitchStandardHz
+      pitchStandardHz,
+      pipeType
     )[0];
 
     const terminationLabel =
@@ -1247,6 +1258,7 @@ export default function App() {
     manualOpenById,
     manualRegisterHoleId,
     pitchStandardHz,
+    pipeType,
     tempC,
     toleranceCents,
   ]);
@@ -1678,6 +1690,7 @@ export default function App() {
     setFingerings(saved.fingerings);
     setCameraState(saved.cameraState);
     setNotes(saved.notes ?? "");
+    setPipeType(saved.pipeType ?? "closed");
 
     const preset = findMouthpiecePreset(saved.selectedMouthpieceId) ?? defaultMouthpiecePreset;
     setSelectedMouthpieceId(preset.id);
@@ -1702,6 +1715,7 @@ export default function App() {
       mouthpiece,
       holes,
       fingerings,
+      pipeType,
       cameraState,
       notes: notes || undefined,
     };
@@ -2707,6 +2721,16 @@ export default function App() {
           <label>
             Design name
             <input value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            Pipe type
+            <select
+              value={pipeType}
+              onChange={(e) => setPipeType(e.target.value as PipeType)}
+            >
+              <option value="closed">Closed-open (clarinet, saxophone)</option>
+              <option value="open">Open-open (flute, recorder, bassoon)</option>
+            </select>
           </label>
           <label>
             Air temperature (C)
@@ -3850,10 +3874,11 @@ export default function App() {
                   <select
                     value={solverRegister}
                     onChange={(e) =>
-                      setSolverRegister(e.target.value as "fundamental" | "third")
+                      setSolverRegister(e.target.value as "fundamental" | "second" | "third")
                     }
                   >
                     <option value="fundamental">Fundamental (f1)</option>
+                    <option value="second">Second harmonic (f2)</option>
                     <option value="third">Third harmonic (f3)</option>
                   </select>
                 </label>
@@ -3994,11 +4019,12 @@ export default function App() {
                           updateFingering(
                             fingering.id,
                             "register",
-                            e.target.value as "fundamental" | "third"
+                            e.target.value as "fundamental" | "second" | "third"
                           )
                         }
                       >
                         <option value="fundamental">Fundamental (chalumeau)</option>
+                        <option value="second">Second harmonic (octave)</option>
                         <option value="third">Third harmonic (clarion)</option>
                       </select>
                     </td>

@@ -57,12 +57,14 @@ export type ToneHole = {
   targetNote: string;
 };
 
+export type PipeType = "closed" | "open";
+
 export type Fingering = {
   id: string;
   label: string;
   targetNote: string;
   ventHoleId: string;
-  register: "fundamental" | "third";
+  register: "fundamental" | "second" | "third";
   termination: "vent-hole" | "below-open-vent-closed" | "bell";
 };
 
@@ -74,8 +76,9 @@ export type HoleEvaluation = {
   wallThicknessMm: number | null;
   effectiveLengthMm: number;
   predictedFundamentalHz: number;
+  predictedSecondHz: number;
   predictedThirdHz: number;
-  activeRegister: "fundamental" | "third";
+  activeRegister: "fundamental" | "second" | "third";
   activeTermination: "vent-hole" | "below-open-vent-closed" | "bell";
   predictedActiveHz: number;
   targetHz: number | null;
@@ -90,7 +93,7 @@ export type FingeringEvaluation = {
   label: string;
   targetNote: string;
   ventHoleLabel: string;
-  register: "fundamental" | "third";
+  register: "fundamental" | "second" | "third";
   predictedHz: number | null;
   nearestNote: string;
   centsErrorToTarget: number | null;
@@ -101,7 +104,7 @@ export type FingeringEvaluation = {
 export type HoleTriangulationSolution = {
   holeId: string;
   holeLabel: string;
-  register: "fundamental" | "third";
+  register: "fundamental" | "second" | "third";
   targetHz: number;
   solvedZMm: number;
   solvedDiameterMm: number;
@@ -124,7 +127,7 @@ export type TuningSensitivityOptions = {
 export type FingeringTuningSensitivity = {
   fingeringId: string;
   fingeringLabel: string;
-  register: "fundamental" | "third";
+  register: "fundamental" | "second" | "third";
   targetNote: string;
   predictedHz: number | null;
   centsErrorToTarget: number | null;
@@ -428,9 +431,40 @@ function lengthFromQuarterWave(frequencyHz: number, cMs: number): number {
   return (cMs / (4 * hz)) * 1000;
 }
 
+function frequencyFromHalfWave(lengthMm: number, cMs: number): number {
+  const lengthM = Math.max(lengthMm, 5) / 1000;
+  return cMs / (2 * lengthM);
+}
+
+function lengthFromHalfWave(frequencyHz: number, cMs: number): number {
+  const hz = Math.max(frequencyHz, 0.001);
+  return (cMs / (2 * hz)) * 1000;
+}
+
+function frequencyFromPipeResonance(lengthMm: number, cMs: number, pipeType: PipeType): number {
+  return pipeType === "open"
+    ? frequencyFromHalfWave(lengthMm, cMs)
+    : frequencyFromQuarterWave(lengthMm, cMs);
+}
+
+function lengthFromPipeResonance(frequencyHz: number, cMs: number, pipeType: PipeType): number {
+  return pipeType === "open"
+    ? lengthFromHalfWave(frequencyHz, cMs)
+    : lengthFromQuarterWave(frequencyHz, cMs);
+}
+
 function oddHarmonic(fundamentalHz: number, harmonicIndex: number): number {
   const n = 2 * harmonicIndex - 1;
   return fundamentalHz * n;
+}
+
+function registerHz(
+  fundamentalHz: number,
+  register: "fundamental" | "second" | "third"
+): number {
+  if (register === "third") return oddHarmonic(fundamentalHz, 2);
+  if (register === "second") return fundamentalHz * 2;
+  return fundamentalHz;
 }
 
 function hzToMidi(freq: number, a4Hz: number): number {
@@ -546,34 +580,41 @@ function findHoleById(holes: ToneHole[], id: string): ToneHole | null {
   return null;
 }
 
-function fundamentalFromBellTermination(segments: BoreSegment[], cMs: number): number {
-  return frequencyFromQuarterWave(Math.max(totalBoreLengthMm(segments), 0.1), cMs);
+function fundamentalFromBellTermination(
+  segments: BoreSegment[],
+  cMs: number,
+  pipeType: PipeType = "closed"
+): number {
+  return frequencyFromPipeResonance(Math.max(totalBoreLengthMm(segments), 0.1), cMs, pipeType);
 }
 
 export function predictClosedTubeFundamentalHz(
   segments: BoreSegment[],
-  tempC: number
+  tempC: number,
+  pipeType: PipeType = "closed"
 ): number {
   const cMs = speedOfSoundMs(tempC);
-  return fundamentalFromBellTermination(segments, cMs);
+  return fundamentalFromBellTermination(segments, cMs, pipeType);
 }
 
 export function requiredClosedTubeAcousticLengthMm(
   targetFundamentalHz: number,
-  tempC: number
+  tempC: number,
+  pipeType: PipeType = "closed"
 ): number | null {
   if (!Number.isFinite(targetFundamentalHz) || targetFundamentalHz <= 0) {
     return null;
   }
 
   const cMs = speedOfSoundMs(tempC);
-  return lengthFromQuarterWave(targetFundamentalHz, cMs);
+  return lengthFromPipeResonance(targetFundamentalHz, cMs, pipeType);
 }
 
 function fundamentalFromHoleTermination(
   segments: BoreSegment[],
   hole: ToneHole,
-  cMs: number
+  cMs: number,
+  pipeType: PipeType = "closed"
 ): number {
   const drillAngleDeg = hole.drillAngleDeg ?? 0;
   const nominalDistanceMm = distanceFromMouthpieceMm(segments, hole.zMm);
@@ -585,7 +626,7 @@ function fundamentalFromHoleTermination(
   const holeDistanceMm = distanceFromMouthpieceMm(segments, acousticZMm);
   const localBoreMm = diameterAtMm(segments, holeDistanceMm);
   const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm, acousticZMm, drillAngleDeg);
-  return frequencyFromQuarterWave(effectiveLengthMm, cMs);
+  return frequencyFromPipeResonance(effectiveLengthMm, cMs, pipeType);
 }
 
 function firstOpenBelowHole(
@@ -626,7 +667,8 @@ function evaluateSingleFingering(
   holes: ToneHole[],
   fingering: Fingering,
   tempC: number,
-  a4Hz: number
+  a4Hz: number,
+  pipeType: PipeType = "closed"
 ): FingeringEvaluation {
   const result = evaluateFingerings(
     segments,
@@ -634,7 +676,8 @@ function evaluateSingleFingering(
     [fingering],
     tempC,
     10,
-    a4Hz
+    a4Hz,
+    pipeType
   )[0];
   return result;
 }
@@ -666,14 +709,15 @@ function centralDifferenceSensitivity(
   key: "diameterMm" | "zMm" | "chimneyMm",
   stepMm: number,
   tempC: number,
-  a4Hz: number
+  a4Hz: number,
+  pipeType: PipeType = "closed"
 ): number | null {
   const step = Math.max(stepMm, 0.001);
   const plusHoles = perturbHoleGeometry(holes, holeId, key, step);
   const minusHoles = perturbHoleGeometry(holes, holeId, key, -step);
 
-  const plus = evaluateSingleFingering(segments, plusHoles, fingering, tempC, a4Hz);
-  const minus = evaluateSingleFingering(segments, minusHoles, fingering, tempC, a4Hz);
+  const plus = evaluateSingleFingering(segments, plusHoles, fingering, tempC, a4Hz, pipeType);
+  const minus = evaluateSingleFingering(segments, minusHoles, fingering, tempC, a4Hz, pipeType);
 
   if (plus.centsErrorToTarget === null || minus.centsErrorToTarget === null) {
     return null;
@@ -700,10 +744,11 @@ function predictedHoleRegisterHz(
   segments: BoreSegment[],
   hole: ToneHole,
   cMs: number,
-  register: "fundamental" | "third"
+  register: "fundamental" | "second" | "third",
+  pipeType: PipeType = "closed"
 ): number {
-  const fundamentalHz = fundamentalFromHoleTermination(segments, hole, cMs);
-  return register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
+  const fundamentalHz = fundamentalFromHoleTermination(segments, hole, cMs, pipeType);
+  return registerHz(fundamentalHz, register);
 }
 
 function targetScore(
@@ -726,8 +771,9 @@ export function triangulateHoleForTargetHz(
   holeId: string,
   targetHz: number,
   tempC: number,
-  register: "fundamental" | "third" = "fundamental",
-  mode: HoleTriangulationMode = "z-and-diameter"
+  register: "fundamental" | "second" | "third" = "fundamental",
+  mode: HoleTriangulationMode = "z-and-diameter",
+  pipeType: PipeType = "closed"
 ): HoleTriangulationSolution | null {
   if (!Number.isFinite(targetHz) || targetHz <= 0) {
     return null;
@@ -753,7 +799,7 @@ export function triangulateHoleForTargetHz(
   let best = {
     zMm: sourceHole.zMm,
     diameterMm: sourceHole.diameterMm,
-    predictedHz: predictedHoleRegisterHz(segments, sourceHole, cMs, register),
+    predictedHz: predictedHoleRegisterHz(segments, sourceHole, cMs, register, pipeType),
     score: Number.POSITIVE_INFINITY,
   };
 
@@ -763,7 +809,7 @@ export function triangulateHoleForTargetHz(
       zMm: clamp(zMm, zMin, zMax),
       diameterMm: clamp(diameterMm, 0.5, 16),
     };
-    const predictedHz = predictedHoleRegisterHz(segments, candidate, cMs, register);
+    const predictedHz = predictedHoleRegisterHz(segments, candidate, cMs, register, pipeType);
     const score = targetScore(
       predictedHz,
       targetHz,
@@ -844,7 +890,8 @@ export function evaluateToneHoles(
   holes: ToneHole[],
   tempC: number,
   a4Hz = 440,
-  _fingerings: Fingering[] = []
+  _fingerings: Fingering[] = [],
+  pipeType: PipeType = "closed"
 ): HoleEvaluation[] {
   const cMs = speedOfSoundMs(tempC);
 
@@ -862,7 +909,8 @@ export function evaluateToneHoles(
       const wallThicknessMm =
         outerDia !== null ? Math.max(0, (outerDia - localBoreMm) / 2) : null;
       const effectiveLengthMm = holeDistanceMm + effectiveLengthForHole(hole, localBoreMm, acousticZMm, drillAngleDeg);
-      const fundamentalHz = frequencyFromQuarterWave(effectiveLengthMm, cMs);
+      const fundamentalHz = frequencyFromPipeResonance(effectiveLengthMm, cMs, pipeType);
+      const secondHz = fundamentalHz * 2;
       const thirdHz = oddHarmonic(fundamentalHz, 2);
 
       // Tone-hole table is always per-row-hole-open.
@@ -887,6 +935,7 @@ export function evaluateToneHoles(
         wallThicknessMm,
         effectiveLengthMm,
         predictedFundamentalHz: fundamentalHz,
+        predictedSecondHz: secondHz,
         predictedThirdHz: thirdHz,
         activeRegister,
         activeTermination,
@@ -906,16 +955,17 @@ export function evaluateFingerings(
   fingerings: Fingering[],
   tempC: number,
   toleranceCents: number,
-  a4Hz = 440
+  a4Hz = 440,
+  pipeType: PipeType = "closed"
 ): FingeringEvaluation[] {
   const cMs = speedOfSoundMs(tempC);
   const tol = Math.max(Math.abs(toleranceCents), 0.1);
 
   return fingerings.map((fingering) => {
     if (fingering.termination === "bell") {
-      const fundamentalHz = fundamentalFromBellTermination(segments, cMs);
+      const fundamentalHz = fundamentalFromBellTermination(segments, cMs, pipeType);
       const predictedHz =
-        fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
+        registerHz(fundamentalHz, fingering.register);
 
       const targetMidi = parseScientificPitch(fingering.targetNote);
       if (targetMidi === null) {
@@ -980,9 +1030,9 @@ export function evaluateFingerings(
         resolvedVentHoleLabel =
           `${openBelow.label} (first open below selected ${hole.label})`;
       } else {
-        const bellFundamentalHz = fundamentalFromBellTermination(segments, cMs);
+        const bellFundamentalHz = fundamentalFromBellTermination(segments, cMs, pipeType);
         const predictedHz =
-          fingering.register === "third" ? oddHarmonic(bellFundamentalHz, 2) : bellFundamentalHz;
+          registerHz(bellFundamentalHz, fingering.register);
 
         const targetMidi = parseScientificPitch(fingering.targetNote);
         if (targetMidi === null) {
@@ -1022,9 +1072,9 @@ export function evaluateFingerings(
       }
     }
 
-    const fundamentalHz = fundamentalFromHoleTermination(segments, soundingHole, cMs);
+    const fundamentalHz = fundamentalFromHoleTermination(segments, soundingHole, cMs, pipeType);
     const predictedHz =
-      fingering.register === "third" ? oddHarmonic(fundamentalHz, 2) : fundamentalHz;
+      registerHz(fundamentalHz, fingering.register);
 
     const targetMidi = parseScientificPitch(fingering.targetNote);
     if (targetMidi === null) {
@@ -1071,7 +1121,8 @@ export function evaluateFingeringTuningSensitivity(
   fingering: Fingering,
   tempC: number,
   a4Hz = 440,
-  options: TuningSensitivityOptions = {}
+  options: TuningSensitivityOptions = {},
+  pipeType: PipeType = "closed"
 ): FingeringTuningSensitivity {
   const diameterStepMm = Math.max(options.diameterStepMm ?? 0.1, 0.01);
   const zStepMm = Math.max(options.zStepMm ?? 0.5, 0.01);
@@ -1081,7 +1132,7 @@ export function evaluateFingeringTuningSensitivity(
   const maxSuggestedChimneyDeltaMm = Math.max(options.maxSuggestedChimneyDeltaMm ?? 2.5, 0.01);
   const sensitivityFloor = Math.max(options.sensitivityFloor ?? 1e-3, 1e-6);
 
-  const base = evaluateSingleFingering(segments, holes, fingering, tempC, a4Hz);
+  const base = evaluateSingleFingering(segments, holes, fingering, tempC, a4Hz, pipeType);
   const soundingHole = resolveSoundingHoleForFingering(holes, fingering);
 
   if (base.centsErrorToTarget === null) {
@@ -1132,7 +1183,8 @@ export function evaluateFingeringTuningSensitivity(
     "diameterMm",
     diameterStepMm,
     tempC,
-    a4Hz
+    a4Hz,
+    pipeType
   );
   const centsPerMmZ = centralDifferenceSensitivity(
     segments,
@@ -1142,7 +1194,8 @@ export function evaluateFingeringTuningSensitivity(
     "zMm",
     zStepMm,
     tempC,
-    a4Hz
+    a4Hz,
+    pipeType
   );
   const centsPerMmChimney = centralDifferenceSensitivity(
     segments,
@@ -1152,7 +1205,8 @@ export function evaluateFingeringTuningSensitivity(
     "chimneyMm",
     chimneyStepMm,
     tempC,
-    a4Hz
+    a4Hz,
+    pipeType
   );
 
   const suggestedDeltaDiameterMm = suggestedDeltaFromSensitivity(
@@ -1199,7 +1253,8 @@ export function evaluateFingeringTuningSensitivities(
   fingerings: Fingering[],
   tempC: number,
   a4Hz = 440,
-  options: TuningSensitivityOptions = {}
+  options: TuningSensitivityOptions = {},
+  pipeType: PipeType = "closed"
 ): FingeringTuningSensitivity[] {
   return fingerings.map((fingering) =>
     evaluateFingeringTuningSensitivity(
@@ -1208,7 +1263,8 @@ export function evaluateFingeringTuningSensitivities(
       fingering,
       tempC,
       a4Hz,
-      options
+      options,
+      pipeType
     )
   );
 }

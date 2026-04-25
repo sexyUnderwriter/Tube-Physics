@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "name": "Pipers' Guild 1930s Treble Pipe in D",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "D5",
+  "cockpitShowChalumeau": true,
+  "cockpitShowClarion": true,
+  "intonationShowChalumeau": true,
+  "intonationShowClarion": true,
+  "selectedMouthpieceId": "vandoren-bb-5rv-lyre",
+  "segments": [
+    {
+      "id": "seg-foot",
+      "label": "Foot",
+      "zMm": 0,
+      "diameterMm": 18.5,
+      "outerDiameterMm": 24.2,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-lower-body",
+      "label": "Lower body",
+      "zMm": 90,
+      "diameterMm": 18.5,
+      "outerDiameterMm": 24,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-mid-body",
+      "label": "Mid body",
+      "zMm": 180,
+      "diameterMm": 18.4,
+      "outerDiameterMm": 23.8,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-upper-body",
+      "label": "Upper body",
+      "zMm": 255,
+      "diameterMm": 18.3,
+      "outerDiameterMm": 23.6,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-head",
+      "label": "Head with window",
+      "zMm": 305,
+      "diameterMm": 18.2,
+      "outerDiameterMm": 23.4,
+      "interpolationGroup": "body"
+    }
+  ],
+  "bends": [],
+  "mouthpiece": {
+    "label": "Sloped fipple head",
+    "insertMm": 0,
+    "boreMm": 18.2,
+    "overallLengthMm": 0,
+    "presetApplied": false
+  },
+  "holes": [
+    {
+      "id": "hole-1",
+      "label": "Hole 1 (C#)",
+      "zMm": 165,
+      "outerZMm": 165,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 4,
+      "chimneyMm": 2.9,
+      "targetNote": "C#6"
+    },
+    {
+      "id": "hole-2",
+      "label": "Hole 2 (B)",
+      "zMm": 145,
+      "outerZMm": 145,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 5,
+      "chimneyMm": 3,
+      "targetNote": "B5"
+    },
+    {
+      "id": "hole-3",
+      "label": "Hole 3 (A)",
+      "zMm": 122,
+      "outerZMm": 122,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6,
+      "chimneyMm": 3,
+      "targetNote": "A5"
+    },
+    {
+      "id": "hole-4",
+      "label": "Hole 4 (G)",
+      "zMm": 95,
+      "outerZMm": 95,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 5,
+      "chimneyMm": 3,
+      "targetNote": "G5"
+    },
+    {
+      "id": "hole-5",
+      "label": "Hole 5 (F#)",
+      "zMm": 72,
+      "outerZMm": 72,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6,
+      "chimneyMm": 3,
+      "targetNote": "F#5"
+    },
+    {
+      "id": "hole-6",
+      "label": "Hole 6 (E)",
+      "zMm": 48,
+      "outerZMm": 48,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 5,
+      "chimneyMm": 3,
+      "targetNote": "E5"
+    },
+    {
+      "id": "thumb-hole",
+      "label": "Thumb hole (octave D')",
+      "zMm": 185,
+      "outerZMm": 185,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 4,
+      "chimneyMm": 2.8,
+      "targetNote": "D6"
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-d5",
+      "label": "All closed",
+      "targetNote": "D5",
+      "ventHoleId": "hole-1",
+      "register": "fundamental",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-e5",
+      "label": "Hole 6 open",
+      "targetNote": "E5",
+      "ventHoleId": "hole-6",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-fs5",
+      "label": "Holes 5-6 open",
+      "targetNote": "F#5",
+      "ventHoleId": "hole-5",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-g5",
+      "label": "Holes 4-6 open",
+      "targetNote": "G5",
+      "ventHoleId": "hole-4",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-a5",
+      "label": "Holes 3-6 open",
+      "targetNote": "A5",
+      "ventHoleId": "hole-3",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-b5",
+      "label": "Holes 2-6 open",
+      "targetNote": "B5",
+      "ventHoleId": "hole-2",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-cs6",
+      "label": "Holes 1-6 open",
+      "targetNote": "C#6",
+      "ventHoleId": "hole-1",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-d6",
+      "label": "Thumb hole octave",
+      "targetNote": "D6",
+      "ventHoleId": "thumb-hole",
+      "register": "second",
+      "termination": "vent-hole"
+    }
+  ],
+  "pipeType": "open",
+  "notes": "Built from the 1930s Pipers' Guild treble pipe in D proportions supplied by the user. This snapshot uses a 305 mm body as the initial rough-cut length within the stated 29-31 cm finished range, with the understanding that a historical maker would cut slightly long and trim the foot back until all-holes-closed settled on D. Bore is modeled at 18.5 mm with slight natural taper toward the head, and outer diameter is held around 24 mm to stay inside the 22-25 mm historical comfort range. The windway/window geometry is not explicitly modeled by this app; use the historical values outside the physics model: top to window center about 25 mm, window about 6 mm by 5 mm, sloped mouthpiece, and a thinned knife-edge lip. Hole spacings here are translated directly from the Guild's distances measured from the labium downward: H1 C# 115 mm, H2 B 135 mm, H3 A 158 mm, H4 G 185 mm, H5 F# 208 mm, H6 E 232 mm, thumb D' 95 mm on the back. Hole diameters are left at the recommended pilot sizes so this file should be treated as a rough-cut starting point for iterative enlargement and trimming, not as a final acoustically optimized build."
+}

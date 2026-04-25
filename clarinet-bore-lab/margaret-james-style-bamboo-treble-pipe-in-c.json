@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "name": "Margaret James Style Bamboo Treble Pipe in C",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "C5",
+  "cockpitShowChalumeau": true,
+  "cockpitShowClarion": true,
+  "intonationShowChalumeau": true,
+  "intonationShowClarion": true,
+  "selectedMouthpieceId": "vandoren-bb-5rv-lyre",
+  "segments": [
+    {
+      "id": "seg-foot",
+      "label": "Foot exit",
+      "zMm": 0,
+      "diameterMm": 12.8,
+      "outerDiameterMm": 19.5,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-lower-body",
+      "label": "Lower bamboo body",
+      "zMm": 95,
+      "diameterMm": 12.7,
+      "outerDiameterMm": 19.2,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-mid-body",
+      "label": "Mid bamboo body",
+      "zMm": 190,
+      "diameterMm": 12.5,
+      "outerDiameterMm": 18.8,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-upper-body",
+      "label": "Upper bamboo body",
+      "zMm": 275,
+      "diameterMm": 12.3,
+      "outerDiameterMm": 18.4,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-head",
+      "label": "Blowing end",
+      "zMm": 330,
+      "diameterMm": 12.1,
+      "outerDiameterMm": 18,
+      "interpolationGroup": "body"
+    }
+  ],
+  "bends": [],
+  "mouthpiece": {
+    "label": "Integral blowing end",
+    "insertMm": 0,
+    "boreMm": 12.1,
+    "overallLengthMm": 0,
+    "presetApplied": false
+  },
+  "holes": [
+    {
+      "id": "hole-lower",
+      "label": "Lower finger hole",
+      "zMm": 41,
+      "outerZMm": 41,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.2,
+      "chimneyMm": 3.2,
+      "targetNote": "D5"
+    },
+    {
+      "id": "hole-middle",
+      "label": "Middle finger hole",
+      "zMm": 73,
+      "outerZMm": 73,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6.8,
+      "chimneyMm": 3,
+      "targetNote": "E5"
+    },
+    {
+      "id": "hole-upper",
+      "label": "Upper finger hole",
+      "zMm": 113,
+      "outerZMm": 113,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6.4,
+      "chimneyMm": 2.8,
+      "targetNote": "G5"
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-c5",
+      "label": "All closed",
+      "targetNote": "C5",
+      "ventHoleId": "hole-upper",
+      "register": "fundamental",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-d5",
+      "label": "Lower hole open",
+      "targetNote": "D5",
+      "ventHoleId": "hole-lower",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-e5",
+      "label": "Middle hole open",
+      "targetNote": "E5",
+      "ventHoleId": "hole-middle",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-g5",
+      "label": "Upper hole open",
+      "targetNote": "G5",
+      "ventHoleId": "hole-upper",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-c6",
+      "label": "All closed overblown",
+      "targetNote": "C6",
+      "ventHoleId": "hole-upper",
+      "register": "second",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-d6",
+      "label": "Lower hole overblown",
+      "targetNote": "D6",
+      "ventHoleId": "hole-lower",
+      "register": "second",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-e6",
+      "label": "Middle hole overblown",
+      "targetNote": "E6",
+      "ventHoleId": "hole-middle",
+      "register": "second",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-g6",
+      "label": "Upper hole overblown",
+      "targetNote": "G6",
+      "ventHoleId": "hole-upper",
+      "register": "second",
+      "termination": "vent-hole"
+    }
+  ],
+  "pipeType": "open",
+  "notes": "Best-effort starting point for a Margaret James style bamboo treble pipe in C, modeled here as a straight three-hole open pipe/tabor-pipe family instrument rather than a recorder. Assumptions: cylindrical to very slightly tapered bamboo bore, integral blowing end, total sounding length about 330 mm, fundamental all-closed note C5 at A440 and 20 C, second-register octave overblow available through the new open-pipe model. Hole layout is intentionally conservative and should be treated as a prototyping baseline rather than a finished historical copy. If you want, the next pass should tune the three hole diameters and z positions against a target diatonic scale and then shape the outside diameters to match a specific Margaret James specimen more closely."
+}

@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "name": "Pipers' Guild 1930s Treble Pipe in D (finished, tuned)",
+  "tempC": 20,
+  "pitchStandardHz": 440,
+  "toleranceCents": 10,
+  "firstChalumeauNote": "D5",
+  "cockpitShowChalumeau": true,
+  "cockpitShowClarion": true,
+  "intonationShowChalumeau": true,
+  "intonationShowClarion": true,
+  "selectedMouthpieceId": "vandoren-bb-5rv-lyre",
+  "segments": [
+    {
+      "id": "seg-foot",
+      "label": "Foot",
+      "zMm": 0,
+      "diameterMm": 18.5,
+      "outerDiameterMm": 24.3,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-lower",
+      "label": "Lower body",
+      "zMm": 73,
+      "diameterMm": 18.43,
+      "outerDiameterMm": 24.2,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-mid",
+      "label": "Mid body",
+      "zMm": 146,
+      "diameterMm": 18.35,
+      "outerDiameterMm": 24.1,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-upper",
+      "label": "Upper body",
+      "zMm": 219,
+      "diameterMm": 18.28,
+      "outerDiameterMm": 24.0,
+      "interpolationGroup": "body"
+    },
+    {
+      "id": "seg-head",
+      "label": "Head / blowing end",
+      "zMm": 292,
+      "diameterMm": 18.2,
+      "outerDiameterMm": 23.9,
+      "interpolationGroup": "body"
+    }
+  ],
+  "bends": [],
+  "mouthpiece": {
+    "label": "Integral fipple head",
+    "insertMm": 0,
+    "boreMm": 18.2,
+    "overallLengthMm": 0,
+    "presetApplied": false
+  },
+  "holes": [
+    {
+      "id": "hole-h6",
+      "label": "H6 — E",
+      "zMm": 91,
+      "outerZMm": 91,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.5,
+      "chimneyMm": 2.9,
+      "targetNote": "E5"
+    },
+    {
+      "id": "hole-h5",
+      "label": "H5 — F#",
+      "zMm": 122,
+      "outerZMm": 122,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 8.0,
+      "chimneyMm": 2.9,
+      "targetNote": "F#5"
+    },
+    {
+      "id": "hole-h4",
+      "label": "H4 — G",
+      "zMm": 140,
+      "outerZMm": 140,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.5,
+      "chimneyMm": 2.9,
+      "targetNote": "G5"
+    },
+    {
+      "id": "hole-h3",
+      "label": "H3 — A",
+      "zMm": 166,
+      "outerZMm": 166,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 8.0,
+      "chimneyMm": 2.9,
+      "targetNote": "A5"
+    },
+    {
+      "id": "hole-h2",
+      "label": "H2 — B",
+      "zMm": 192,
+      "outerZMm": 192,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 7.5,
+      "chimneyMm": 2.9,
+      "targetNote": "B5"
+    },
+    {
+      "id": "hole-thumb",
+      "label": "Thumb — D' (octave vent)",
+      "zMm": 197,
+      "outerZMm": 197,
+      "lockInnerOuterZ": true,
+      "angleDeg": -180,
+      "drillAngleDeg": 0,
+      "diameterMm": 5.0,
+      "chimneyMm": 2.9,
+      "targetNote": "D6"
+    },
+    {
+      "id": "hole-h1",
+      "label": "H1 — C#",
+      "zMm": 222,
+      "outerZMm": 222,
+      "lockInnerOuterZ": true,
+      "angleDeg": 0,
+      "drillAngleDeg": 0,
+      "diameterMm": 6.0,
+      "chimneyMm": 2.9,
+      "targetNote": "C#6"
+    }
+  ],
+  "fingerings": [
+    {
+      "id": "fing-d5",
+      "label": "D5 — all closed",
+      "targetNote": "D5",
+      "ventHoleId": "hole-h6",
+      "register": "fundamental",
+      "termination": "bell"
+    },
+    {
+      "id": "fing-e5",
+      "label": "E5 — H6 open",
+      "targetNote": "E5",
+      "ventHoleId": "hole-h6",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-fs5",
+      "label": "F#5 — H5–H6 open",
+      "targetNote": "F#5",
+      "ventHoleId": "hole-h5",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-g5",
+      "label": "G5 — H4–H6 open",
+      "targetNote": "G5",
+      "ventHoleId": "hole-h4",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-a5",
+      "label": "A5 — H3–H6 open",
+      "targetNote": "A5",
+      "ventHoleId": "hole-h3",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-b5",
+      "label": "B5 — H2–H6 open",
+      "targetNote": "B5",
+      "ventHoleId": "hole-h2",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-cs6",
+      "label": "C#6 — H1–H6 open",
+      "targetNote": "C#6",
+      "ventHoleId": "hole-h1",
+      "register": "fundamental",
+      "termination": "vent-hole"
+    },
+    {
+      "id": "fing-d6",
+      "label": "D6 — all closed, overblown",
+      "targetNote": "D6",
+      "ventHoleId": "hole-thumb",
+      "register": "second",
+      "termination": "bell"
+    }
+  ],
+  "pipeType": "open",
+  "notes": "Finished, acoustically tuned variant of the 1930s Pipers' Guild treble pipe in D.\n\nBody length is 292 mm — the trimmed finished length. At 20°C and A440 the half-wave formula gives D5 (587.33 Hz) at 292.4 mm; the 0.4 mm rounding leaves the all-closed note 2 cents sharp, well inside the 10-cent tolerance. The Guild's rough-cut of 320 mm would be sanded/trimmed to this length until the all-closed fundamental settles on D.\n\nHole positions were derived analytically from the open-pipe half-wave model combined with the Keefe-style shunt + downstream-load end-correction built into this app. For each note the required effective acoustic length L_eff = c/(2f) was computed, then the hole z position solved from:\n  z = (totalLength + shuntCorrection - L_eff) / (1 - downstreamFactor)\nwhere shunt = (rb²/rh²)·(chimney + 1.291·rh) and downstreamFactor = rh²/(rb²+rh²).\n\nThis gives positions that are acoustically consistent with the app's physics model but differ from the Guild's empirical window-distance measurements because the Keefe correction is calibrated for closed-pipe (clarinet) instruments. On a real bamboo pipe the shunt term will behave somewhat differently and these positions should be treated as calculated starting points that may need up to ±10 mm adjustment by ear. The Guild's traditional method — drill small pilot holes starting from the bottom and enlarge to sharpen — remains the right practical approach.\n\nHole diameters are set to post-enlargement finished sizes (6–8 mm) rather than 4–5 mm pilot sizes, since this is the tuned variant. Thumb-hole position (z = 197 mm from bell, 95 mm from blowing end) follows the Guild empirical 9.5 cm figure directly and is used here as an octave register vent.\n\nFingerings use 'vent-hole' termination at the highest open hole for each note (first-order single-hole termination model). The influence of holes open further from the mouthpiece is not modelled; for a six-hole instrument this is a reasonable approximation but expect small systematic errors, especially in the lower register notes where the tube below H6 is relatively long."
+}
