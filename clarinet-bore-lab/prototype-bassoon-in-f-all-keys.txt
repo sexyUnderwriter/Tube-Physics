@@ -59,10 +59,10 @@ CLARINET_BORE_LAB_MODEL_V1
     {
       "id": "bend-87tsuq0",
       "label": "Bend 1",
-      "pathDistanceMm": 325,
+      "pathDistanceMm": 374,
       "bendAngleDeg": 180,
       "bendAxisPlane": "yz",
-      "bendRadiusMm": 11
+      "bendRadiusMm": 8
     }
   ],
   "mouthpiece": {
