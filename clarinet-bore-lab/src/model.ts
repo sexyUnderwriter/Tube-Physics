@@ -23,7 +23,18 @@ export type BoreBend = {
 };
 
 /** A point on the 3D bore path with its corresponding acoustic z coordinate. */
-export type PathPoint = Vec3 & { acousticZ: number };
+export type PathPoint = Vec3 & {
+  acousticZ: number;
+  dirX: number;
+  dirY: number;
+  dirZ: number;
+  uAxisX: number;
+  uAxisY: number;
+  uAxisZ: number;
+  vAxisX: number;
+  vAxisY: number;
+  vAxisZ: number;
+};
 
 export type ToneHole = {
   id: string;
@@ -208,10 +219,29 @@ export function calculateBorePathPoints(
   const points: PathPoint[] = [];
   let pos: Vec3 = { x: 0, y: 0, z: 0 };
   let dir: Vec3 = { x: 0, y: 0, z: 1 };
+  // Initial local frame: uAxis points in x direction, vAxis in y direction
+  let uAxis: Vec3 = { x: 1, y: 0, z: 0 };
+  let vAxis: Vec3 = { x: 0, y: 1, z: 0 };
+
+  const pushPoint = (p: Vec3, az: number, d: Vec3, u: Vec3, v: Vec3) => {
+    points.push({
+      ...p,
+      acousticZ: az,
+      dirX: d.x,
+      dirY: d.y,
+      dirZ: d.z,
+      uAxisX: u.x,
+      uAxisY: u.y,
+      uAxisZ: u.z,
+      vAxisX: v.x,
+      vAxisY: v.y,
+      vAxisZ: v.z,
+    });
+  };
 
   for (let i = 0; i < allZ.length; i++) {
     const z = allZ[i];
-    points.push({ ...pos, acousticZ: z });
+    pushPoint(pos, z, dir, uAxis, vAxis);
 
     const bend = mappedBends.find((b) => Math.abs(b.zFromBell - z) < 0.5);
     if (bend) {
@@ -233,20 +263,29 @@ export function calculateBorePathPoints(
 
       // Generate arc points; step 0 is already pushed above as the straight-arrival point
       let lastVec = startVec;
+      let arcDir = dir;
+      let arcUAxis = uAxis;
+      let arcVAxis = vAxis;
       for (let step = 1; step <= ARC_STEPS; step++) {
         const θ = (step / ARC_STEPS) * φRad;
         lastVec = rotInPlane(startVec, θ, bend.bendAxisPlane);
-        points.push({
-          x: center.x + lastVec.x,
-          y: center.y + lastVec.y,
-          z: center.z + lastVec.z,
-          acousticZ: z,
-        });
+        arcDir = norm3(rotInPlane(dir, θ, bend.bendAxisPlane));
+        arcUAxis = norm3(rotInPlane(uAxis, θ, bend.bendAxisPlane));
+        arcVAxis = norm3(rotInPlane(vAxis, θ, bend.bendAxisPlane));
+        pushPoint(
+          { x: center.x + lastVec.x, y: center.y + lastVec.y, z: center.z + lastVec.z },
+          z,
+          arcDir,
+          arcUAxis,
+          arcVAxis
+        );
       }
 
-      // Update position to arc end; update direction to post-bend direction
+      // Update position to arc end; update direction and frame to post-bend
       pos = { x: center.x + lastVec.x, y: center.y + lastVec.y, z: center.z + lastVec.z };
       dir = norm3(rotInPlane(dir, φRad, bend.bendAxisPlane));
+      uAxis = norm3(rotInPlane(uAxis, φRad, bend.bendAxisPlane));
+      vAxis = norm3(rotInPlane(vAxis, φRad, bend.bendAxisPlane));
     }
 
     // Advance along current direction to the next waypoint
@@ -260,7 +299,7 @@ export function calculateBorePathPoints(
     }
   }
 
-  points.push({ ...pos, acousticZ: totalLength });
+  pushPoint(pos, totalLength, dir, uAxis, vAxis);
   return points;
 }
 

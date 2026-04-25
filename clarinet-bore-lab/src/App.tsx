@@ -547,6 +547,7 @@ type DesignSnapshot = {
   intonationShowClarion: boolean;
   selectedMouthpieceId: string;
   segments: BoreSegment[];
+  bends: BoreBend[];
   mouthpiece: MouthpieceGeometry;
   holes: ToneHole[];
   fingerings: Fingering[];
@@ -564,6 +565,7 @@ type SnapshotV1 = Omit<
   | "holes"
   | "mouthpiece"
   | "fingerings"
+  | "bends"
   | "cockpitShowChalumeau"
   | "cockpitShowClarion"
   | "intonationShowChalumeau"
@@ -573,6 +575,7 @@ type SnapshotV1 = Omit<
   cockpitShowClarion?: boolean;
   intonationShowChalumeau?: boolean;
   intonationShowClarion?: boolean;
+  bends?: BoreBend[];
   holes: Array<ToneHole | LegacyToneHole>;
   fingerings: Array<Fingering | LegacyFingering>;
   mouthpiece?: Partial<MouthpieceGeometry>;
@@ -730,6 +733,7 @@ function parseSnapshotFile(text: string): DesignSnapshot | null {
           ? parsed.intonationShowClarion
           : true,
       selectedMouthpieceId: preset.id,
+      bends: Array.isArray(parsed.bends) ? parsed.bends : [],
       mouthpiece,
       holes: normalizedHoles,
       fingerings: normalizedFingerings,
@@ -1576,6 +1580,7 @@ export default function App() {
     setIntonationShowChalumeau(saved.intonationShowChalumeau);
     setIntonationShowClarion(saved.intonationShowClarion);
     setSegments(saved.segments);
+    setBends(saved.bends);
     setMouthpiece(saved.mouthpiece);
     setHoles(saved.holes);
     setFingerings(saved.fingerings);
@@ -1599,6 +1604,7 @@ export default function App() {
       intonationShowClarion,
       selectedMouthpieceId,
       segments,
+      bends,
       mouthpiece,
       holes,
       fingerings,
@@ -3229,7 +3235,13 @@ export default function App() {
             </div>
           </div>
 
-          <Bore3DViewer segments={segments} bends={bends} holes={holes} />
+          <Bore3DViewer
+            segments={segments}
+            bends={bends}
+            holes={holes}
+            results={results}
+            showHolePitch={showHolePitch}
+          />
 
           <p className="math">
             Add bends to route the tube like a bassoon using smooth pipe elbows. Acoustic

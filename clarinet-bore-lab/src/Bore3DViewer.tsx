@@ -7,15 +7,18 @@ import {
   PathPoint,
   ToneHole,
   calculateBorePathPoints,
+  HoleEvaluation,
 } from "./model";
 
 interface Bore3DViewerProps {
   segments: BoreSegment[];
   bends: BoreBend[];
   holes: ToneHole[];
+  results?: HoleEvaluation[];
+  showHolePitch?: boolean;
 }
 
-export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
+export function Bore3DViewer({ segments, bends, holes, results = [], showHolePitch = false }: Bore3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -152,7 +155,7 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
 
     const sampleAtAcousticZ = (
       targetZ: number
-    ): { pos: THREE.Vector3; tangent: THREE.Vector3 } => {
+    ): { pos: THREE.Vector3; tangent: THREE.Vector3; uAxis: THREE.Vector3; vAxis: THREE.Vector3 } => {
       const z = Math.min(Math.max(targetZ, 0), totalZLength);
       for (let i = 0; i < pathPoints.length - 1; i++) {
         const p1 = pathPoints[i];
@@ -171,7 +174,17 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
             p1.z + t * (p2.z - p1.z)
           );
           const tangent = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
-          return { pos, tangent };
+          const uAxis = new THREE.Vector3(
+            p1.uAxisX + t * (p2.uAxisX - p1.uAxisX),
+            p1.uAxisY + t * (p2.uAxisY - p1.uAxisY),
+            p1.uAxisZ + t * (p2.uAxisZ - p1.uAxisZ)
+          ).normalize();
+          const vAxis = new THREE.Vector3(
+            p1.vAxisX + t * (p2.vAxisX - p1.vAxisX),
+            p1.vAxisY + t * (p2.vAxisY - p1.vAxisY),
+            p1.vAxisZ + t * (p2.vAxisZ - p1.vAxisZ)
+          ).normalize();
+          return { pos, tangent, uAxis, vAxis };
         }
       }
 
@@ -190,12 +203,14 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
       const tangent = new THREE.Vector3(next.x - prev.x, next.y - prev.y, next.z - prev.z);
       if (tangent.lengthSq() < 1e-9) tangent.set(0, 0, 1);
       tangent.normalize();
-      return { pos: new THREE.Vector3(at.x, at.y, at.z), tangent };
+      const uAxis = new THREE.Vector3(at.uAxisX, at.uAxisY, at.uAxisZ).normalize();
+      const vAxis = new THREE.Vector3(at.vAxisX, at.vAxisY, at.vAxisZ).normalize();
+      return { pos: new THREE.Vector3(at.x, at.y, at.z), tangent, uAxis, vAxis };
     };
 
     // Build rings uniformly along 3D arc length (correct for both straight and curved sections)
     const RING_SEGMENTS = 32;
-    const NUM_RINGS = 150;
+    const NUM_RINGS = 300;
     const positionsArr: number[] = [];
     const indicesArr: number[] = [];
     let prevU = new THREE.Vector3();
@@ -263,15 +278,12 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
     // Tone holes: chimney tube + inner aperture + outer opening.
     holes.forEach((hole, idx) => {
       const holeZ = Math.min(Math.max(hole.zMm, 0), totalZLength);
-      const { pos: centerPos, tangent } = sampleAtAcousticZ(holeZ);
+      const { pos: centerPos, tangent, uAxis, vAxis } = sampleAtAcousticZ(holeZ);
       const holeRadius = Math.max(hole.diameterMm * 0.5, 0.3);
       const localBoreRadius = radiusAtAcousticZ(holeZ);
 
-      const seed = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-      const uAxis = new THREE.Vector3().crossVectors(tangent, seed).normalize();
-      const vAxis = new THREE.Vector3().crossVectors(tangent, uAxis).normalize();
       const circumfRad = (hole.angleDeg * Math.PI) / 180;
-      const radialDir = uAxis.multiplyScalar(Math.cos(circumfRad)).add(vAxis.multiplyScalar(Math.sin(circumfRad))).normalize();
+      const radialDir = uAxis.clone().multiplyScalar(Math.cos(circumfRad)).add(vAxis.clone().multiplyScalar(Math.sin(circumfRad))).normalize();
 
       const aperturePos = centerPos.clone().add(radialDir.clone().multiplyScalar(localBoreRadius));
 
@@ -309,6 +321,47 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
       openingMesh.position.copy(openingPos);
       openingMesh.name = `bore-hole-opening-${idx}`;
       sceneRef.current?.add(openingMesh);
+
+      // Add pitch label if enabled
+      if (showHolePitch) {
+        const evaluation = results.find((r) => r.id === hole.id);
+        let labelText = hole.label;
+        if (evaluation) {
+          const cents =
+            evaluation.centsErrorToTarget !== null
+              ? evaluation.centsErrorToTarget
+              : evaluation.centsErrorToNearest;
+          const noteLabel =
+            evaluation.centsErrorToTarget !== null
+              ? hole.targetNote.trim() || evaluation.nearestNote
+              : evaluation.nearestNote;
+          const sign = cents >= 0 ? "+" : "-";
+          labelText = `${noteLabel} ${sign}${Math.abs(cents).toFixed(1)}c`;
+        }
+
+        // Create canvas texture with label
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 64;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#1a1a1a";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 24px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(labelText, canvas.width / 2, canvas.height / 2);
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMat = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.position.copy(openingPos.clone().add(radialDir.clone().multiplyScalar(15)));
+        sprite.scale.set(40, 10, 1);
+        sprite.name = `bore-hole-label-${idx}`;
+        sceneRef.current?.add(sprite);
+      }
     });
 
     // Bend markers: orange spheres at the arc midpoint of each bend
@@ -345,7 +398,7 @@ export function Bore3DViewer({ segments, bends, holes }: Bore3DViewerProps) {
       controlsRef.current.target.copy(center);
       controlsRef.current.update();
     }
-  }, [segments, bends, holes]);
+  }, [segments, bends, holes, results, showHolePitch]);
 
   return (
     <div
