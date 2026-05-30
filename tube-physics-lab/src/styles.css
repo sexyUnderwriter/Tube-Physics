@@ -1,0 +1,198 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap");
+
+:root {
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+  color: #f6f5f4;
+  background: #10151d;
+  --bg-deep: #10151d;
+  --bg-mid: #152436;
+  --ink-soft: #a7b9cb;
+  --panel: rgba(8, 14, 24, 0.72);
+  --line: rgba(173, 207, 241, 0.24);
+  --accent: #ffad66;
+  --accent-2: #61c6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 173, 102, 0.26), transparent 36%),
+    radial-gradient(circle at 86% 10%, rgba(97, 198, 255, 0.25), transparent 34%),
+    linear-gradient(140deg, var(--bg-deep), var(--bg-mid));
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.glow {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(24px);
+  opacity: 0.45;
+  animation: drift 7s ease-in-out infinite;
+}
+
+.glow-a {
+  width: 180px;
+  height: 180px;
+  background: var(--accent);
+  top: 12%;
+  left: -50px;
+}
+
+.glow-b {
+  width: 210px;
+  height: 210px;
+  background: var(--accent-2);
+  right: -60px;
+  top: 28%;
+  animation-delay: 1s;
+}
+
+.shell {
+  width: min(1040px, 94vw);
+  margin: 0 auto;
+  padding: 42px 0 60px;
+}
+
+.hero {
+  margin-bottom: 26px;
+  animation: rise 0.7s ease-out both;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+h1,
+h2 {
+  font-family: "Fraunces", serif;
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.02;
+}
+
+.hero p {
+  color: var(--ink-soft);
+  max-width: 62ch;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+  animation: rise 0.8s ease-out both;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.94rem;
+}
+
+input,
+select {
+  width: 100%;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(7, 10, 16, 0.58);
+  color: #f4f6fb;
+  padding: 10px 11px;
+  font: inherit;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.grid .card {
+  animation: rise 0.95s ease-out both;
+}
+
+h2 {
+  margin-bottom: 14px;
+}
+
+dl {
+  margin: 14px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  padding-top: 8px;
+}
+
+dt {
+  color: var(--ink-soft);
+}
+
+dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(12px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 880px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

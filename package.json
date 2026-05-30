@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "clarinet-bore-lab"
+    "clarinet-bore-lab",
+    "tube-physics-lab"
   ],
   "scripts": {
     "dev": "cd clarinet-bore-lab && npm run dev",
     "build": "cd clarinet-bore-lab && npm run build",
-    "preview": "cd clarinet-bore-lab && npm run preview"
+    "preview": "cd clarinet-bore-lab && npm run preview",
+    "dev:tube": "cd tube-physics-lab && npm run dev",
+    "build:tube": "cd tube-physics-lab && npm run build",
+    "preview:tube": "cd tube-physics-lab && npm run preview"
   }
 }
